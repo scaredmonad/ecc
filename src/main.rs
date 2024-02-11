@@ -1,7 +1,8 @@
-// #![allow(dead_code)]
+#![allow(dead_code)]
+#![allow(unused_variables)]
 use std::str::Chars;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 enum TokenType {
     Import,
     Export,
@@ -22,10 +23,12 @@ enum TokenType {
     Equal,
     Mul,
     Div,
+    Gt,
+    Lt,
     EOF,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Token {
     token_type: TokenType,
     lexeme: String,
@@ -198,6 +201,24 @@ impl<'a> Lexer<'a> {
                 }
             }
 
+            Some('>') => {
+                self.advance();
+
+                Token {
+                    token_type: TokenType::Gt,
+                    lexeme: ">".to_string(),
+                }
+            }
+
+            Some('<') => {
+                self.advance();
+
+                Token {
+                    token_type: TokenType::Lt,
+                    lexeme: "<".to_string(),
+                }
+            }
+
             Some('=') => {
                 self.advance();
 
@@ -285,7 +306,24 @@ impl<'a> Lexer<'a> {
     }
 }
 
-fn main() {
+fn collect_tokens(input: &str) -> Vec<Token> {
+    let mut lexer = Lexer::new(input);
+    let mut tokens = Vec::new();
+
+    loop {
+        let token = lexer.next_token();
+        tokens.push(token.clone());
+
+        if token.token_type == TokenType::EOF {
+            break;
+        }
+    }
+
+    tokens
+}
+
+#[test]
+fn tokenize_input() {
     let input = r#"
         import std.fs;
         import std.fs.read;
@@ -296,19 +334,19 @@ fn main() {
 
         int main() {
             int[] c = [
-                add(5, 10)
+                add(1, 2),
                 add(5, 10)
             ];
         }
     "#;
-    let mut lexer = Lexer::new(input);
+    let tokens = collect_tokens(input);
+    assert_eq!(tokens.len() > 0, true);
+}
 
-    loop {
-        let token = lexer.next_token();
-        println!("{:?}", token);
-
-        if token.token_type == TokenType::EOF {
-            break;
-        }
-    }
+fn main() {
+    let input = r#"
+        int a = 5;
+    "#;
+    let tokens = collect_tokens(input);
+    dbg!(tokens);
 }
