@@ -1,8 +1,10 @@
-#![allow(dead_code)]
+// #![allow(dead_code)]
 use std::str::Chars;
 
 #[derive(Debug, PartialEq)]
 enum TokenType {
+    Export,
+    Extern,
     Identifier(String),
     IntLiteral(i64),
     LeftParen,
@@ -203,6 +205,27 @@ impl<'a> Lexer<'a> {
                 }
             }
 
+            Some('e') => {
+                let identifier = self.consume_identifier();
+
+                match identifier.as_str() {
+                    "export" => Token {
+                        token_type: TokenType::Export,
+                        lexeme: identifier,
+                    },
+
+                    "extern" => Token {
+                        token_type: TokenType::Extern,
+                        lexeme: identifier,
+                    },
+
+                    _ => Token {
+                        token_type: TokenType::Identifier(identifier.clone()),
+                        lexeme: identifier,
+                    },
+                }
+            }
+
             Some(c) if c.is_alphabetic() => {
                 let identifier = self.consume_identifier();
 
@@ -236,7 +259,7 @@ impl<'a> Lexer<'a> {
 }
 
 fn main() {
-    let input = "int add(int a, int b) { return a + b; } int main() { int[] c = [add(5, 10)]; }";
+    let input = "fuzzytest export expert exp0rt expotr export expp int add(int a, int b) { return a + b; } extern external exter0n extern0 int main() { int[] c = [add(5, 10)]; }";
     let mut lexer = Lexer::new(input);
 
     loop {
