@@ -7,6 +7,7 @@ enum TokenType {
     Import,
     Export,
     Extern,
+    BoolLiteral(bool),
     Identifier(String),
     IntLiteral(i64),
     LeftParen,
@@ -267,6 +268,16 @@ impl<'a> Lexer<'a> {
                         lexeme: identifier,
                     },
 
+                    "true" => Token {
+                        token_type: TokenType::BoolLiteral(true),
+                        lexeme: identifier,
+                    },
+
+                    "false" => Token {
+                        token_type: TokenType::BoolLiteral(false),
+                        lexeme: identifier,
+                    },
+
                     _ => Token {
                         token_type: TokenType::Identifier(identifier.clone()),
                         lexeme: identifier,
@@ -355,7 +366,46 @@ struct Identifier(String);
 enum Expression {
     Uninit,
     IntLiteral(i64),
+    BoolLiteral(bool),
     Variable(Identifier),
+    Binary(Box<Expression>, BinaryOp, Box<Expression>),
+    Comparison(Box<Expression>, CompareOp, Box<Expression>),
+}
+
+#[derive(Debug, Clone)]
+enum BinaryOp {
+    Add,
+    Sub,
+    Mul,
+    Div
+}
+
+impl From<&str> for BinaryOp {
+    fn from(s: &str) -> Self {
+        match s {
+            "+" => BinaryOp::Add,
+            "-" => BinaryOp::Sub,
+            _ => panic!("Invalid binary operator"),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum CompareOp {
+    GreaterThan,
+    LessThan,
+    Equal,
+}
+
+impl From<&str> for CompareOp {
+    fn from(s: &str) -> Self {
+        match s {
+            ">" => CompareOp::GreaterThan,
+            "<" => CompareOp::LessThan,
+            "==" => CompareOp::Equal,
+            _ => panic!("Invalid comparison operator"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -457,16 +507,17 @@ fn parse_variable_declaration(tokens: &mut Vec<Token>) -> VariableDeclaration {
         tokens.remove(0); // Eat '=' token
 
         // Parse value expression.
-        if tokens
-            .get(0)
-            .map(|s| s.lexeme.parse::<i64>().is_ok())
-            .unwrap_or(false)
-        {
-            let value = tokens.remove(0).lexeme.parse().unwrap();
-            Expression::IntLiteral(value)
-        } else {
-            Expression::Variable(Identifier(tokens.remove(0).lexeme))
-        }
+        // if tokens
+        //     .get(0)
+        //     .map(|s| s.lexeme.parse::<i64>().is_ok())
+        //     .unwrap_or(false)
+        // {
+        //     let value = tokens.remove(0).lexeme.parse().unwrap();
+        //     Expression::IntLiteral(value)
+        // } else {
+        //     Expression::Variable(Identifier(tokens.remove(0).lexeme))
+        // }
+        parse_expression(tokens)
     } else {
         Expression::Uninit // Variable is uninitialized.
     };
@@ -536,21 +587,50 @@ fn assert_parse_uninit_var_decl() {
     );
 }
 
+// fn parse_expression(tokens: &mut Vec<Token>) -> Expression {
+//     if tokens.is_empty() {
+//         panic!("Unexpected end of tokens");
+//     }
+
+//     let token = tokens.remove(0);
+
+//     match token.token_type {
+//         TokenType::IntLiteral(_) => {
+//             let value = token.lexeme.parse().expect("Invalid integer literal");
+//             Expression::IntLiteral(value)
+//         }
+//         TokenType::Identifier(_) => Expression::Variable(Identifier(token.lexeme)),
+//         _ => panic!("Invalid expression: Unexpected token"),
+//     }
+// }
+
 fn parse_expression(tokens: &mut Vec<Token>) -> Expression {
-    if tokens.is_empty() {
-        panic!("Unexpected end of tokens");
-    }
+    // Parse the first operand of the expression
+    let mut left_operand = match tokens.remove(0).token_type {
+        TokenType::BoolLiteral(value) => Expression::BoolLiteral(value),
+        TokenType::IntLiteral(value) => Expression::IntLiteral(value),
+        TokenType::Identifier(name) => Expression::Variable(Identifier(name)),
+        _ => panic!("Invalid expression"),
+    };
 
-    let token = tokens.remove(0);
-
-    match token.token_type {
-        TokenType::IntLiteral(_) => {
-            let value = token.lexeme.parse().expect("Invalid integer literal");
-            Expression::IntLiteral(value)
+    // Check if there's a binary operator
+    while let Some(operator_token) = tokens.get(0).cloned() {
+        match operator_token.token_type {
+            TokenType::Plus | TokenType::Minus => {
+                tokens.remove(0); // Consume the operator token
+                let right_operand = parse_expression(tokens);
+                left_operand = Expression::Binary(Box::new(left_operand), BinaryOp::from(operator_token.lexeme.as_str()), Box::new(right_operand));
+            }
+            TokenType::Gt | TokenType::Lt | TokenType::Equal => {
+                tokens.remove(0); // Consume the operator token
+                let right_operand = parse_expression(tokens);
+                left_operand = Expression::Comparison(Box::new(left_operand), CompareOp::from(operator_token.lexeme.as_str()), Box::new(right_operand));
+            }
+            _ => break, // Not a binary or comparison operator, exit the loop
         }
-        TokenType::Identifier(_) => Expression::Variable(Identifier(token.lexeme)),
-        _ => panic!("Invalid expression: Unexpected token"),
     }
+
+    left_operand
 }
 
 fn parse_program(tokens: &mut Vec<Token>) -> Program {
@@ -573,13 +653,9 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
 
 fn main() {
     let input = r#"
-        int a = 5;
-        int b = 7;
-        int c;
-
-        int x = a;
-        int y = x;
-        int z;
+        int a = 5 + 9;
+        bool b = 7 > 2;
+        bool c = true;
     "#;
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
