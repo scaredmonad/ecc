@@ -476,6 +476,17 @@ impl PartialEq for BinaryOp {
     }
 }
 
+impl PartialEq for CompareOp {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (CompareOp::GreaterThan, CompareOp::GreaterThan) => true,
+            (CompareOp::LessThan, CompareOp::LessThan) => true,
+            (CompareOp::Equal, CompareOp::Equal) => true,
+            _ => false,
+        }
+    }
+}
+
 impl PartialEq for Expression {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -487,6 +498,10 @@ impl PartialEq for Expression {
             (
                 Expression::Binary(lhs_a, lhs_op, lhs_b),
                 Expression::Binary(rhs_a, rhs_op, rhs_b),
+            ) => lhs_a == rhs_a && lhs_op == rhs_op && lhs_b == rhs_b,
+            (
+                Expression::Comparison(lhs_a, lhs_op, lhs_b),
+                Expression::Comparison(rhs_a, rhs_op, rhs_b),
             ) => lhs_a == rhs_a && lhs_op == rhs_op && lhs_b == rhs_b,
             _ => false,
         }
@@ -734,6 +749,27 @@ fn assert_parse_var_decl_binary_expr() {
     );
 }
 
+#[test]
+fn assert_parse_var_decl_compare_expr() {
+    let input = "bool T = 7 > 2;";
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![Declaration::Variable(VariableDeclaration {
+                data_type: Type::Int,
+                identifier: Identifier("T".into()),
+                value: Expression::Comparison(
+                    Box::new(Expression::IntLiteral(7)),
+                    CompareOp::GreaterThan,
+                    Box::new(Expression::IntLiteral(2))
+                )
+            }),]
+        }
+    );
+}
+
 fn parse_program(tokens: &mut Vec<Token>) -> Program {
     let mut declarations = Vec::new();
 
@@ -754,10 +790,7 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
 
 fn main() {
     let input = r#"
-        int b = 1 / 10;
-        int b = 6 * 40;
         bool b = 7 > 2;
-        bool c = true;
     "#;
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
