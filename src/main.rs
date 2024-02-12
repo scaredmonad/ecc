@@ -683,21 +683,53 @@ fn assert_parse_var_decl_bool_literal() {
 fn assert_parse_var_decl_binary_expr() {
     let input = r#"
         int a = 5 + 9;
+        int b = 8 - 6;
+        int c = 6 * 2;
+        int d = 1 / 10;
     "#;
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
     assert_eq!(
         program,
         Program {
-            declarations: vec![Declaration::Variable(VariableDeclaration {
-                data_type: Type::Int,
-                identifier: Identifier("a".into()),
-                value: Expression::Binary(
-                    Box::new(Expression::IntLiteral(5)),
-                    BinaryOp::Add,
-                    Box::new(Expression::IntLiteral(9))
-                )
-            }),]
+            declarations: vec![
+                Declaration::Variable(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("a".into()),
+                    value: Expression::Binary(
+                        Box::new(Expression::IntLiteral(5)),
+                        BinaryOp::Add,
+                        Box::new(Expression::IntLiteral(9))
+                    )
+                }),
+                Declaration::Variable(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("b".into()),
+                    value: Expression::Binary(
+                        Box::new(Expression::IntLiteral(8)),
+                        BinaryOp::Sub,
+                        Box::new(Expression::IntLiteral(6))
+                    )
+                }),
+                Declaration::Variable(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("c".into()),
+                    value: Expression::Binary(
+                        Box::new(Expression::IntLiteral(6)),
+                        BinaryOp::Mul,
+                        Box::new(Expression::IntLiteral(2))
+                    )
+                }),
+                Declaration::Variable(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("d".into()),
+                    value: Expression::Binary(
+                        Box::new(Expression::IntLiteral(1)),
+                        BinaryOp::Div,
+                        Box::new(Expression::IntLiteral(10))
+                    )
+                }),
+            ]
         }
     );
 }
@@ -722,8 +754,8 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
 
 fn main() {
     let input = r#"
-        bool b = 1 / 10;
-        bool b = 6 * 40;
+        int b = 1 / 10;
+        int b = 6 * 40;
         bool b = 7 > 2;
         bool c = true;
     "#;
