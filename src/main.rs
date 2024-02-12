@@ -343,10 +343,128 @@ fn tokenize_input() {
     assert_eq!(tokens.len() > 0, true);
 }
 
+#[derive(Debug, Clone)]
+enum Type {
+    Int,
+}
+
+#[derive(Debug, Clone)]
+struct Identifier(String);
+
+#[derive(Debug, Clone)]
+enum Expression {
+    IntLiteral(i64),
+    Variable(Identifier),
+}
+
+#[derive(Debug, Clone)]
+struct VariableDeclaration {
+    data_type: Type,
+    identifier: Identifier,
+    value: Expression,
+}
+
+#[derive(Debug, Clone)]
+enum Declaration {
+    Noop,
+    Variable(VariableDeclaration),
+}
+
+#[derive(Debug, Clone)]
+struct Program {
+    declarations: Vec<Declaration>,
+}
+
+fn parse_variable_declaration(tokens: &mut Vec<Token>) -> VariableDeclaration {
+    // Minimum tokens (should proly be 5 for initialized).
+    if tokens.len() < 4 {
+        panic!("Invalid declaration syntax: Insufficient tokens");
+    }
+
+    // Eat LHS type identifier.
+    let type_identifier = match tokens.remove(0) {
+        Token {
+            token_type: TokenType::Identifier(_),
+            lexeme,
+        } => lexeme,
+        _ => panic!("Invalid declaration syntax: Type identifier expected"),
+    };
+
+    // Eat LHS variable ident.
+    let variable_identifier = match tokens.remove(0) {
+        Token {
+            token_type: TokenType::Identifier(_),
+            lexeme,
+        } => lexeme,
+        _ => panic!("Invalid declaration syntax: Variable identifier expected"),
+    };
+
+    // Eat equal op.
+    match tokens.remove(0) {
+        Token {
+            token_type: TokenType::Equal,
+            ..
+        } => (),
+        _ => panic!("Invalid declaration syntax: '=' expected"),
+    };
+
+    // Eat RHS expression (value).
+    let value = parse_expression(tokens);
+
+    VariableDeclaration {
+        data_type: Type::Int, // @todo: derive types with From<String>.
+        identifier: Identifier(variable_identifier),
+        value,
+    }
+}
+
+fn parse_expression(tokens: &mut Vec<Token>) -> Expression {
+    if tokens.is_empty() {
+        panic!("Invalid expression syntax: Empty expression");
+    }
+
+    let token = tokens.pop().unwrap();
+
+    match token.token_type {
+        TokenType::IntLiteral(_) => {
+            let value = token.lexeme.parse().expect("Invalid integer literal");
+            Expression::IntLiteral(value)
+        }
+
+        TokenType::Identifier(_) => {
+            let identifier = Identifier(token.lexeme);
+            Expression::Variable(identifier)
+        }
+
+        _ => Expression::Variable(Identifier(String::from("temp"))),
+    }
+}
+
+fn parse_program(tokens: &mut Vec<Token>) -> Program {
+    let mut declarations = Vec::new();
+
+    while !tokens.is_empty() {
+        match tokens[0].token_type {
+            TokenType::Identifier(_) => {
+                let declaration = parse_variable_declaration(tokens);
+                declarations.push(Declaration::Variable(declaration));
+            }
+            _ => {
+                tokens.remove(0); // /!\
+            }
+        }
+    }
+
+    Program { declarations }
+}
+
 fn main() {
     let input = r#"
         int a = 5;
+        int b = 7;
+        string c = 8;
     "#;
-    let tokens = collect_tokens(input);
-    dbg!(tokens);
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    dbg!(program);
 }
