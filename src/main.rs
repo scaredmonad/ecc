@@ -323,7 +323,7 @@ fn collect_tokens(input: &str) -> Vec<Token> {
 }
 
 #[test]
-fn tokenize_input() {
+fn assert_tokenize_input() {
     let input = r#"
         import std.fs;
         import std.fs.read;
@@ -476,6 +476,64 @@ fn parse_variable_declaration(tokens: &mut Vec<Token>) -> VariableDeclaration {
         identifier: Identifier(variable_identifier),
         value,
     }
+}
+
+#[test]
+fn assert_parse_var_decl() {
+    let input = "int a = 5;";
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![Declaration::Variable(VariableDeclaration {
+                data_type: Type::Int,
+                identifier: Identifier("a".into()),
+                value: Expression::IntLiteral(5)
+            })]
+        }
+    );
+}
+
+#[test]
+fn assert_parse_multi_var_decl() {
+    let input = "int a = 5; int b = 9;";
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![
+                Declaration::Variable(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("a".into()),
+                    value: Expression::IntLiteral(5)
+                }),
+                Declaration::Variable(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("b".into()),
+                    value: Expression::IntLiteral(9)
+                })
+            ]
+        }
+    );
+}
+
+#[test]
+fn assert_parse_uninit_var_decl() {
+    let input = "int a;";
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![Declaration::Variable(VariableDeclaration {
+                data_type: Type::Int,
+                identifier: Identifier("a".into()),
+                value: Expression::Uninit
+            })]
+        }
+    );
 }
 
 fn parse_expression(tokens: &mut Vec<Token>) -> Expression {
