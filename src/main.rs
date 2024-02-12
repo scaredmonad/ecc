@@ -353,6 +353,7 @@ struct Identifier(String);
 
 #[derive(Debug, Clone)]
 enum Expression {
+    Uninit,
     IntLiteral(i64),
     Variable(Identifier),
 }
@@ -366,13 +367,59 @@ struct VariableDeclaration {
 
 #[derive(Debug, Clone)]
 enum Declaration {
-    Noop,
     Variable(VariableDeclaration),
 }
 
 #[derive(Debug, Clone)]
 struct Program {
     declarations: Vec<Declaration>,
+}
+
+impl PartialEq for Type {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Type::Int, Type::Int) => true,
+            // _ => false,
+        }
+    }
+}
+
+impl PartialEq for Identifier {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl PartialEq for Expression {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Expression::IntLiteral(lhs), Expression::IntLiteral(rhs)) => lhs == rhs,
+            (Expression::Variable(lhs), Expression::Variable(rhs)) => lhs == rhs,
+            (Expression::Uninit, Expression::Uninit) => true,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq for VariableDeclaration {
+    fn eq(&self, other: &Self) -> bool {
+        self.identifier == other.identifier && self.value == other.value
+    }
+}
+
+impl PartialEq for Declaration {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Declaration::Variable(lhs), Declaration::Variable(rhs)) => lhs == rhs,
+            // _ => false,
+        }
+    }
+}
+
+impl PartialEq for Program {
+    fn eq(&self, other: &Self) -> bool {
+        self.declarations == other.declarations
+    }
 }
 
 fn parse_variable_declaration(tokens: &mut Vec<Token>) -> VariableDeclaration {
@@ -399,17 +446,30 @@ fn parse_variable_declaration(tokens: &mut Vec<Token>) -> VariableDeclaration {
         _ => panic!("Invalid declaration syntax: Variable identifier expected"),
     };
 
-    // Eat equal op.
-    match tokens.remove(0) {
-        Token {
+    // Check if there's an initialization expression.
+    let value = if matches!(
+        tokens.get(0),
+        Some(&Token {
             token_type: TokenType::Equal,
             ..
-        } => (),
-        _ => panic!("Invalid declaration syntax: '=' expected"),
-    };
+        })
+    ) {
+        tokens.remove(0); // Eat '=' token
 
-    // Eat RHS expression (value).
-    let value = parse_expression(tokens);
+        // Parse value expression.
+        if tokens
+            .get(0)
+            .map(|s| s.lexeme.parse::<i64>().is_ok())
+            .unwrap_or(false)
+        {
+            let value = tokens.remove(0).lexeme.parse().unwrap();
+            Expression::IntLiteral(value)
+        } else {
+            Expression::Variable(Identifier(tokens.remove(0).lexeme))
+        }
+    } else {
+        Expression::Uninit // Variable is uninitialized.
+    };
 
     VariableDeclaration {
         data_type: Type::Int, // @todo: derive types with From<String>.
@@ -457,7 +517,11 @@ fn main() {
     let input = r#"
         int a = 5;
         int b = 7;
-        int c = 8;
+        int c;
+
+        int x = a;
+        int y = x;
+        int z;
     "#;
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
