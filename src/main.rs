@@ -420,23 +420,18 @@ fn parse_variable_declaration(tokens: &mut Vec<Token>) -> VariableDeclaration {
 
 fn parse_expression(tokens: &mut Vec<Token>) -> Expression {
     if tokens.is_empty() {
-        panic!("Invalid expression syntax: Empty expression");
+        panic!("Unexpected end of tokens");
     }
 
-    let token = tokens.pop().unwrap();
+    let token = tokens.remove(0);
 
     match token.token_type {
         TokenType::IntLiteral(_) => {
             let value = token.lexeme.parse().expect("Invalid integer literal");
             Expression::IntLiteral(value)
         }
-
-        TokenType::Identifier(_) => {
-            let identifier = Identifier(token.lexeme);
-            Expression::Variable(identifier)
-        }
-
-        _ => Expression::Variable(Identifier(String::from("temp"))),
+        TokenType::Identifier(_) => Expression::Variable(Identifier(token.lexeme)),
+        _ => panic!("Invalid expression: Unexpected token"),
     }
 }
 
@@ -462,7 +457,7 @@ fn main() {
     let input = r#"
         int a = 5;
         int b = 7;
-        string c = 8;
+        int c = 8;
     "#;
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
