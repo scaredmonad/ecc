@@ -379,6 +379,17 @@ fn assert_tokenize_input() {
 #[derive(Debug, Clone)]
 enum Type {
     Int,
+    Bool
+}
+
+impl From<&str> for Type {
+    fn from(s: &str) -> Self {
+        match s {
+            "int" => Type::Int,
+            "bool" => Type::Bool,
+            _ => panic!("Invalid type"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -453,7 +464,8 @@ impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Type::Int, Type::Int) => true,
-            // _ => false,
+            (Type::Bool, Type::Bool) => true,
+            _ => false,
         }
     }
 }
@@ -568,7 +580,7 @@ fn parse_variable_declaration(tokens: &mut Vec<Token>) -> VariableDeclaration {
     };
 
     VariableDeclaration {
-        data_type: Type::Int, // @todo: derive types with From<String>.
+        data_type: Type::from(type_identifier.as_str()),
         identifier: Identifier(variable_identifier),
         value,
     }
