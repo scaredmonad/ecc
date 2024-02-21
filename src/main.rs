@@ -903,18 +903,32 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
     while !tokens.is_empty() {
         match tokens[0].token_type {
             TokenType::Identifier(_) => {
-                let mut lookahead_tokens = tokens.clone();
-                if let Ok(function_declaration) = parse_function_declaration(&mut lookahead_tokens)
-                {
-                    tokens.clone_from(&lookahead_tokens);
-                    declarations.push(Declaration::Function(function_declaration));
+                // Check if it's a fn or var decl since our syntax for both is similar.
+                let is_function = tokens
+                    .iter()
+                    .take_while(|t| {
+                        t.token_type != TokenType::LeftBrace && t.token_type != TokenType::Semicolon
+                    })
+                    .any(|t| matches!(t.token_type, TokenType::LeftParen));
+
+                if is_function {
+                    if let Ok(function_declaration) = parse_function_declaration(tokens) {
+                        declarations.push(Declaration::Function(function_declaration));
+                    } else {
+                        panic!("Failed to parse function declaration");
+                    }
                 } else {
                     let variable_declaration = parse_variable_declaration(tokens);
+
                     declarations.push(Declaration::Variable(variable_declaration));
+
+                    if tokens[0].token_type == TokenType::Semicolon {
+                        tokens.remove(0); // Eat ';'
+                    }
                 }
             }
             _ => {
-                tokens.remove(0); // /!\
+                tokens.remove(0); // /!\ skip unexpected tokens.
             }
         }
     }
@@ -924,9 +938,13 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
 
 fn main() {
     let input = r#"
+        int a = 10;
+
         int mul(int a, int b, int c, bool d) {
             int k = a * b;
         }
+
+        int e = 7;
     "#;
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
