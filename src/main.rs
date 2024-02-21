@@ -825,110 +825,69 @@ fn assert_parse_var_decl_compare_expr() {
 fn parse_function_declaration(tokens: &mut Vec<Token>) -> Result<FunctionDeclaration, String> {
     let return_type = match tokens.remove(0).token_type {
         TokenType::Identifier(ref name) => Type::from(name.as_str()),
-        _ => return Err(String::from("Invalid return type")),
+        _ => panic!("Invalid return type"),
     };
-
-    dbg!(return_type.clone());
 
     let identifier = match tokens.remove(0).token_type {
         TokenType::Identifier(ref name) => Identifier(name.clone()),
-        _ => return Err(String::from("Invalid function identifier")),
+        _ => panic!("Invalid function identifier"),
     };
 
     let mut parameters = Vec::new();
-    if let Some(token) = tokens.get(0).cloned() {
-        if let TokenType::LeftParen = token.token_type {
-            tokens.remove(0);
-
-            while let Some(token) = tokens.get(0).cloned() {
-                match token.token_type {
-                    TokenType::Identifier(param_type) => {
-                        tokens.remove(0);
-                        let param_type = Type::from(param_type.as_str());
-
-                        let param_name = match tokens.remove(0).token_type {
-                            TokenType::Identifier(ref name) => Identifier(name.clone()),
-                            _ => return Err(String::from("Invalid parameter name")),
-                        };
-
-                        parameters.push((param_type, param_name));
-
-                        if let Some(token) = tokens.get(0).cloned() {
-                            if let TokenType::Comma = token.token_type {
-                                tokens.remove(0);
-                            }
-                        }
-                    }
-                    TokenType::RightParen => {
-                        tokens.remove(0);
-                        break;
-                    }
-                    _ => return Err(String::from("Invalid token type for parameter")),
-                }
-            }
-        } else {
-            return Err(String::from(
-                "Missing opening parenthesis in function declaration",
-            ));
-        }
-    } else {
-        return Err(String::from(
-            "Missing opening parenthesis in function declaration",
-        ));
+    match tokens.remove(0).token_type {
+        TokenType::LeftParen => (),
+        _ => panic!("Expected '(' after function identifier"),
     }
 
+    while tokens[0].token_type != TokenType::RightParen {
+        let param_type = match tokens.remove(0).token_type {
+            TokenType::Identifier(ref name) => Type::from(name.as_str()),
+            _ => panic!("Invalid parameter type"),
+        };
+
+        let param_name = match tokens.remove(0).token_type {
+            TokenType::Identifier(ref name) => Identifier(name.clone()),
+            _ => panic!("Invalid parameter name"),
+        };
+
+        parameters.push((param_type, param_name));
+
+        if tokens[0].token_type == TokenType::Comma {
+            tokens.remove(0);
+        }
+    }
+
+    tokens.remove(0); // Eat ')'
+
     let mut body = Vec::new();
-    while let Some(Token { token_type, .. }) = tokens.get(0) {
-        match *token_type {
-            TokenType::IntLiteral(_) | TokenType::BoolLiteral(_) => {
+
+    match tokens.remove(0).token_type {
+        TokenType::LeftBrace => (),
+        _ => panic!("Expected '{{' at the beginning of function body"),
+    }
+
+    while tokens[0].token_type != TokenType::RightBrace {
+        match tokens[0].token_type {
+            TokenType::Identifier(_) => {
                 let variable_declaration = parse_variable_declaration(tokens);
                 body.push(Statement::VariableDeclaration(variable_declaration));
             }
+
             TokenType::Return => {
-                tokens.remove(0); // Eat 'return' token.
+                tokens.remove(0); // Eat 'return'
                 let expression = parse_expression(tokens);
                 body.push(Statement::Return(expression));
+                if tokens[0].token_type == TokenType::Semicolon {
+                    tokens.remove(0); // Eat ';'
+                }
             }
-            _ => {
-                // Expression statement
-                // let expression = parse_expression(tokens);
-                // body.push(Statement::Expression(expression));
-                break; // /!\
-            }
+
+            TokenType::EOF | TokenType::Semicolon => break, // /!\
+            _ => panic!("Unexpected token in function body"),
         }
     }
 
-    // ===paren matches==
-    // let mut body = Vec::new();
-    // while let Some(Token { token_type, .. }) = tokens.get(0) {
-    //     match *token_type {
-    //         TokenType::IntLiteral(_) | TokenType::BoolLiteral(_) => {
-    //             let variable_declaration = parse_variable_declaration(tokens);
-    //             body.push(Statement::VariableDeclaration(variable_declaration));
-    //         }
-
-    //         TokenType::Return => {
-    //             tokens.remove(0); // Eat 'return' token.
-    //             let expression = parse_expression(tokens);
-    //             body.push(Statement::Return(expression));
-    //         }
-
-    //         TokenType::LeftBrace => {
-    //             // Start of fn body.
-    //             tokens.remove(0); // Eat '{' token.
-    //         }
-
-    //         TokenType::RightBrace => {
-    //             // End of fn body.
-    //             tokens.remove(0); // Eat '}' token.
-    //             break; // Exit the loop.
-    //         }
-
-    //         _ => {
-    //             return Err(String::from("Invalid token in function body"));
-    //         }
-    //     }
-    // }
+    tokens.remove(0); // Eat '}'
 
     Ok(FunctionDeclaration {
         return_type,
@@ -965,8 +924,8 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
 
 fn main() {
     let input = r#"
-        int mul(int n, int by) {
-            int temp = n * by;
+        int mul(int a, int b, int c, bool d) {
+            int k = a * b;
         }
     "#;
     let mut tokens = collect_tokens(input);
