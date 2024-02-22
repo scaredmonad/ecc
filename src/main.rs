@@ -518,11 +518,18 @@ struct IfStatement {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+struct WhileStatement {
+    condition: Box<Expression>,
+    body: Vec<Statement>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 enum Statement {
     VariableDeclaration(VariableDeclaration),
     Return(Expression),
     Expression(Expression),
     IfStatement(IfStatement),
+    WhileStatement(WhileStatement),
 }
 
 #[derive(Debug, Clone)]
@@ -925,9 +932,47 @@ fn parse_if_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
     }))
 }
 
+fn parse_while_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
+    // Ensure is 'while'
+    match tokens.remove(0).token_type {
+        TokenType::While => (),
+        _ => return Err("Expected 'while'".to_string()),
+    }
+
+    let condition = if tokens[0].token_type == TokenType::LeftParen {
+        tokens.remove(0); // Eat '('
+        let condition = parse_expression(tokens);
+        if tokens[0].token_type != TokenType::RightParen {
+            return Err("Expected ')' after while condition".to_string());
+        }
+        tokens.remove(0); // Eat ')'
+        Box::new(condition)
+    } else {
+        return Err("Expected '(' after 'while'".to_string());
+    };
+
+    let mut body = Vec::new();
+    if tokens[0].token_type == TokenType::LeftBrace {
+        tokens.remove(0); // Eat '{'
+        while tokens[0].token_type != TokenType::RightBrace {
+            let statement = parse_statement(tokens)?;
+            body.push(statement);
+        }
+        tokens.remove(0); // Eat '}'
+    } else {
+        return Err("Expected '{' after while condition".to_string());
+    }
+
+    Ok(Statement::WhileStatement(WhileStatement {
+        condition,
+        body,
+    }))
+}
+
 fn parse_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
     match tokens.get(0).map(|t| &t.token_type) {
         Some(TokenType::If) => parse_if_statement(tokens),
+        Some(TokenType::While) => parse_while_statement(tokens),
         Some(TokenType::Return) => {
             tokens.remove(0); // Eat 'return'
             let expression = parse_expression(tokens);
@@ -1200,15 +1245,11 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
 
 fn main() {
     let input = r#"
-        int check(int a) {
-            if (a > 0) {
-                return 1;
-            } else {
-                if (a < 0) {
-                    return a;
-                }
+        int f() {
+            int a = k;
 
-                return 0;
+            while (8 > 2) {
+                int b = 8;
             }
         }
     "#;
