@@ -562,9 +562,9 @@ impl PartialEq for VariableDeclaration {
 impl PartialEq for FunctionDeclaration {
     fn eq(&self, other: &Self) -> bool {
         self.return_type == other.return_type
-        && self.identifier == other.identifier
-        && self.parameters == other.parameters
-        && self.body == other.body
+            && self.identifier == other.identifier
+            && self.parameters == other.parameters
+            && self.body == other.body
     }
 }
 
@@ -941,20 +941,56 @@ fn assert_parse_fn_decl() {
                     (Type::Int, Identifier("c".into())),
                     (Type::Bool, Identifier("d".into())),
                 ],
-                body: vec![
-                    Statement::VariableDeclaration(
-                        VariableDeclaration {
-                            data_type: Type::Int,
-                            identifier: Identifier("k".into()),
-                            value: Expression::Binary(
-                                Box::new(Expression::IntLiteral(7)),
-                                BinaryOp::Add,
-                                Box::new(Expression::IntLiteral(10))
-                            )
-                        }
+                body: vec![Statement::VariableDeclaration(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("k".into()),
+                    value: Expression::Binary(
+                        Box::new(Expression::IntLiteral(7)),
+                        BinaryOp::Add,
+                        Box::new(Expression::IntLiteral(10))
                     )
-                ]
+                })]
             }),]
+        }
+    );
+}
+
+#[test]
+fn assert_parse_fn_decl_order() {
+    let input = r#"
+        int i = 0;
+        int i(int j) {
+            int i;
+        }
+        int j = 0;
+    "#;
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![
+                Declaration::Variable(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("i".into()),
+                    value: Expression::IntLiteral(0)
+                }),
+                Declaration::Function(FunctionDeclaration {
+                    return_type: Type::Int,
+                    identifier: Identifier("i".into()),
+                    parameters: vec![(Type::Int, Identifier("j".into())),],
+                    body: vec![Statement::VariableDeclaration(VariableDeclaration {
+                        data_type: Type::Int,
+                        identifier: Identifier("i".into()),
+                        value: Expression::Uninit
+                    })]
+                }),
+                Declaration::Variable(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("j".into()),
+                    value: Expression::IntLiteral(0)
+                }),
+            ]
         }
     );
 }
