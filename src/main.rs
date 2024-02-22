@@ -874,6 +874,9 @@ fn parse_function_declaration(tokens: &mut Vec<Token>) -> Result<FunctionDeclara
             TokenType::Identifier(_) => {
                 let variable_declaration = parse_variable_declaration(tokens);
                 body.push(Statement::VariableDeclaration(variable_declaration));
+                if tokens[0].token_type == TokenType::Semicolon {
+                    tokens.remove(0); // Eat ';'
+                }
             }
 
             TokenType::Return => {
@@ -1036,13 +1039,11 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
 
 fn main() {
     let input = r#"
-        int a = 10;
-
-        int mul(int a, int b, int c, bool d) {
+        int mul(int a, int b) {
             int k = a * b;
-        }
 
-        int e = 7;
+            return k;
+        }
     "#;
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
