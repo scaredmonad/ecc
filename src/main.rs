@@ -959,6 +959,35 @@ fn assert_parse_fn_decl() {
 }
 
 #[test]
+fn assert_parse_fn_decl_returns() {
+    let input = r#"
+        bool gt(int a, int b) {
+            return 8 > 2;
+        }
+    "#;
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![Declaration::Function(FunctionDeclaration {
+                return_type: Type::Bool,
+                identifier: Identifier("gt".into()),
+                parameters: vec![
+                    (Type::Int, Identifier("a".into())),
+                    (Type::Int, Identifier("b".into())),
+                ],
+                body: vec![Statement::Return(Expression::Comparison(
+                    Box::new(Expression::IntLiteral(8)),
+                    CompareOp::GreaterThan,
+                    Box::new(Expression::IntLiteral(2))
+                ))]
+            }),]
+        }
+    );
+}
+
+#[test]
 fn assert_parse_fn_decl_order() {
     let input = r#"
         int i = 0;
