@@ -1200,10 +1200,16 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
 
 fn main() {
     let input = r#"
-        int mul(int a, int b) {
-            int k = a * b;
+        int check(int a) {
+            if (a > 0) {
+                return 1;
+            } else {
+                if (a < 0) {
+                    return a;
+                }
 
-            return k;
+                return 0;
+            }
         }
     "#;
     let mut tokens = collect_tokens(input);
