@@ -511,10 +511,18 @@ struct VariableDeclaration {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+struct IfStatement {
+    condition: Box<Expression>,
+    body: Vec<Statement>,
+    alternative: Option<Vec<Statement>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 enum Statement {
     VariableDeclaration(VariableDeclaration),
     Return(Expression),
     Expression(Expression),
+    IfStatement(IfStatement),
 }
 
 #[derive(Debug, Clone)]
@@ -860,6 +868,90 @@ fn assert_parse_var_decl_compare_expr() {
     );
 }
 
+fn parse_if_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
+    // Ensure 'if' and eat
+    match tokens.remove(0).token_type {
+        TokenType::If => (),
+        _ => return Err("Expected 'if'".to_string()),
+    }
+
+    let condition = if tokens[0].token_type == TokenType::LeftParen {
+        tokens.remove(0); // Eat '('
+        let condition = parse_expression(tokens);
+        if tokens[0].token_type != TokenType::RightParen {
+            return Err("Expected ')' after if condition".to_string());
+        }
+        tokens.remove(0); // Eat ')'
+        Box::new(condition)
+    } else {
+        return Err("Expected '(' after 'if'".to_string());
+    };
+
+    let mut body = Vec::new();
+    if tokens[0].token_type == TokenType::LeftBrace {
+        tokens.remove(0); // Eat '{'
+        while tokens[0].token_type != TokenType::RightBrace {
+            body.push(parse_statement(tokens)?);
+        }
+        tokens.remove(0); // Eat '}'
+    } else {
+        return Err("Expected '{' after if condition".to_string());
+    }
+
+    let alternative = if tokens
+        .get(0)
+        .map_or(false, |t| t.token_type == TokenType::Else)
+    {
+        tokens.remove(0); // Eat 'else'
+        let mut alt_body = Vec::new();
+        if tokens[0].token_type == TokenType::LeftBrace {
+            tokens.remove(0); // Eat '{'
+            while tokens[0].token_type != TokenType::RightBrace {
+                alt_body.push(parse_statement(tokens)?);
+            }
+            tokens.remove(0); // Eat '}'
+        } else {
+            return Err("Expected '{' after 'else'".to_string());
+        }
+        Some(alt_body)
+    } else {
+        None
+    };
+
+    Ok(Statement::IfStatement(IfStatement {
+        condition,
+        body,
+        alternative,
+    }))
+}
+
+fn parse_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
+    match tokens.get(0).map(|t| &t.token_type) {
+        Some(TokenType::If) => parse_if_statement(tokens),
+        Some(TokenType::Return) => {
+            tokens.remove(0); // Eat 'return'
+            let expression = parse_expression(tokens);
+            if tokens[0].token_type == TokenType::Semicolon {
+                tokens.remove(0); // Eat ';'
+            } else {
+                return Err("Expected ';' after return statement".to_string());
+            }
+            Ok(Statement::Return(expression))
+        }
+        Some(TokenType::Identifier(_)) => {
+            let statement = parse_variable_declaration(tokens);
+            if tokens
+                .get(0)
+                .map_or(false, |t| t.token_type == TokenType::Semicolon)
+            {
+                tokens.remove(0); // Eat ';'
+            }
+            Ok(Statement::VariableDeclaration(statement))
+        }
+        _ => Err("Unrecognized statement".to_string()),
+    }
+}
+
 fn parse_function_declaration(tokens: &mut Vec<Token>) -> Result<FunctionDeclaration, String> {
     let return_type = match tokens.remove(0).token_type {
         TokenType::Identifier(ref name) => Type::from(name.as_str()),
@@ -904,28 +996,33 @@ fn parse_function_declaration(tokens: &mut Vec<Token>) -> Result<FunctionDeclara
         _ => panic!("Expected '{{' at the beginning of function body"),
     }
 
+    // while tokens[0].token_type != TokenType::RightBrace {
+    //     match tokens[0].token_type {
+    //         TokenType::Identifier(_) => {
+    //             let variable_declaration = parse_variable_declaration(tokens);
+    //             body.push(Statement::VariableDeclaration(variable_declaration));
+    //             if tokens[0].token_type == TokenType::Semicolon {
+    //                 tokens.remove(0); // Eat ';'
+    //             }
+    //         }
+
+    //         TokenType::Return => {
+    //             tokens.remove(0); // Eat 'return'
+    //             let expression = parse_expression(tokens);
+    //             body.push(Statement::Return(expression));
+    //             if tokens[0].token_type == TokenType::Semicolon {
+    //                 tokens.remove(0); // Eat ';'
+    //             }
+    //         }
+
+    //         TokenType::EOF | TokenType::Semicolon => break, // /!\
+    //         _ => panic!("Unexpected token in function body"),
+    //     }
+    // }
+
     while tokens[0].token_type != TokenType::RightBrace {
-        match tokens[0].token_type {
-            TokenType::Identifier(_) => {
-                let variable_declaration = parse_variable_declaration(tokens);
-                body.push(Statement::VariableDeclaration(variable_declaration));
-                if tokens[0].token_type == TokenType::Semicolon {
-                    tokens.remove(0); // Eat ';'
-                }
-            }
-
-            TokenType::Return => {
-                tokens.remove(0); // Eat 'return'
-                let expression = parse_expression(tokens);
-                body.push(Statement::Return(expression));
-                if tokens[0].token_type == TokenType::Semicolon {
-                    tokens.remove(0); // Eat ';'
-                }
-            }
-
-            TokenType::EOF | TokenType::Semicolon => break, // /!\
-            _ => panic!("Unexpected token in function body"),
-        }
+        let statement = parse_statement(tokens)?;
+        body.push(statement);
     }
 
     tokens.remove(0); // Eat '}'
