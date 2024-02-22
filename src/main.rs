@@ -29,6 +29,10 @@ enum TokenType {
     Equal,
     Mul,
     Div,
+    PlusEqual,
+    MinusEqual,
+    MulEqual,
+    DivEqual,
     Gt,
     Lt,
     EOF,
@@ -174,36 +178,72 @@ impl<'a> Lexer<'a> {
             Some('+') => {
                 self.advance();
 
-                Token {
-                    token_type: TokenType::Plus,
-                    lexeme: "+".to_string(),
+                if self.current_char == Some('=') {
+                    self.advance();
+
+                    Token {
+                        token_type: TokenType::PlusEqual,
+                        lexeme: "+=".to_string(),
+                    }
+                } else {
+                    Token {
+                        token_type: TokenType::Plus,
+                        lexeme: "+".to_string(),
+                    }
                 }
             }
 
             Some('-') => {
                 self.advance();
 
-                Token {
-                    token_type: TokenType::Minus,
-                    lexeme: "-".to_string(),
+                if self.current_char == Some('=') {
+                    self.advance();
+
+                    Token {
+                        token_type: TokenType::MinusEqual,
+                        lexeme: "-=".to_string(),
+                    }
+                } else {
+                    Token {
+                        token_type: TokenType::Minus,
+                        lexeme: "-".to_string(),
+                    }
                 }
             }
 
             Some('*') => {
                 self.advance();
 
-                Token {
-                    token_type: TokenType::Mul,
-                    lexeme: "*".to_string(),
+                if self.current_char == Some('=') {
+                    self.advance();
+
+                    Token {
+                        token_type: TokenType::MulEqual,
+                        lexeme: "*=".to_string(),
+                    }
+                } else {
+                    Token {
+                        token_type: TokenType::Mul,
+                        lexeme: "*".to_string(),
+                    }
                 }
             }
 
             Some('/') => {
                 self.advance();
 
-                Token {
-                    token_type: TokenType::Div,
-                    lexeme: "/".to_string(),
+                if self.current_char == Some('=') {
+                    self.advance();
+
+                    Token {
+                        token_type: TokenType::DivEqual,
+                        lexeme: "/=".to_string(),
+                    }
+                } else {
+                    Token {
+                        token_type: TokenType::Div,
+                        lexeme: "/".to_string(),
+                    }
                 }
             }
 
@@ -455,6 +495,7 @@ enum Expression {
     Variable(Identifier),
     Binary(Box<Expression>, BinaryOp, Box<Expression>),
     Comparison(Box<Expression>, CompareOp, Box<Expression>),
+    Assignment(Box<AssignmentExpression>),
 }
 
 #[derive(Debug, Clone)]
@@ -495,6 +536,19 @@ impl From<&str> for CompareOp {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+struct AssignmentExpression {
+    left: Identifier,
+    operator: AssignmentOperator,
+    right: Box<Expression>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum AssignmentOperator {
+    Assign,    // '='
+    AddAssign, // '+='
+}
+
 #[derive(Debug, Clone)]
 struct FunctionDeclaration {
     return_type: Type,
@@ -530,6 +584,7 @@ enum Statement {
     Expression(Expression),
     IfStatement(IfStatement),
     WhileStatement(WhileStatement),
+    ExpressionStatement(Expression),
 }
 
 #[derive(Debug, Clone)]
@@ -735,6 +790,34 @@ fn assert_parse_uninit_var_decl() {
             })]
         }
     );
+}
+
+fn parse_assignment_expression(tokens: &mut Vec<Token>) -> Result<Expression, String> {
+    let left = match tokens.remove(0).token_type {
+        TokenType::Identifier(name) => Identifier(name),
+        _ => return Err("Expected identifier on the left side of assignment".to_string()),
+    };
+
+    let operator = if matches!(tokens.get(0).map(|t| &t.token_type), Some(TokenType::Plus))
+        && matches!(tokens.get(1).map(|t| &t.token_type), Some(TokenType::Equal))
+    {
+        tokens.remove(0); // Eat '+'
+        tokens.remove(0); // Eat '='
+        AssignmentOperator::AddAssign
+    } else if matches!(tokens.get(0).map(|t| &t.token_type), Some(TokenType::Equal)) {
+        tokens.remove(0); // Eat '='
+        AssignmentOperator::Assign
+    } else {
+        return Err("Expected assignment operator".to_string());
+    };
+
+    let right = parse_expression(tokens);
+
+    Ok(Expression::Assignment(Box::new(AssignmentExpression {
+        left,
+        operator,
+        right: Box::new(right),
+    })))
 }
 
 fn parse_expression(tokens: &mut Vec<Token>) -> Expression {
@@ -969,6 +1052,34 @@ fn parse_while_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
     }))
 }
 
+// fn parse_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
+//     match tokens.get(0).map(|t| &t.token_type) {
+//         Some(TokenType::If) => parse_if_statement(tokens),
+//         Some(TokenType::While) => parse_while_statement(tokens),
+//         Some(TokenType::Return) => {
+//             tokens.remove(0); // Eat 'return'
+//             let expression = parse_expression(tokens);
+//             if tokens[0].token_type == TokenType::Semicolon {
+//                 tokens.remove(0); // Eat ';'
+//             } else {
+//                 return Err("Expected ';' after return statement".to_string());
+//             }
+//             Ok(Statement::Return(expression))
+//         }
+//         Some(TokenType::Identifier(_)) => {
+//             let statement = parse_variable_declaration(tokens);
+//             if tokens
+//                 .get(0)
+//                 .map_or(false, |t| t.token_type == TokenType::Semicolon)
+//             {
+//                 tokens.remove(0); // Eat ';'
+//             }
+//             Ok(Statement::VariableDeclaration(statement))
+//         }
+//         _ => Err("Unrecognized statement".to_string()),
+//     }
+// }
+
 fn parse_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
     match tokens.get(0).map(|t| &t.token_type) {
         Some(TokenType::If) => parse_if_statement(tokens),
@@ -978,20 +1089,39 @@ fn parse_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
             let expression = parse_expression(tokens);
             if tokens[0].token_type == TokenType::Semicolon {
                 tokens.remove(0); // Eat ';'
-            } else {
-                return Err("Expected ';' after return statement".to_string());
             }
             Ok(Statement::Return(expression))
         }
         Some(TokenType::Identifier(_)) => {
-            let statement = parse_variable_declaration(tokens);
-            if tokens
-                .get(0)
-                .map_or(false, |t| t.token_type == TokenType::Semicolon)
-            {
-                tokens.remove(0); // Eat ';'
+            // Check if this is an assignment by looking at the next token.
+            if let Some(token) = tokens.get(1) {
+                match token.token_type {
+                    TokenType::Equal => {
+                        // Parse as an assignment expression.
+                        let expression = parse_assignment_expression(tokens)?;
+                        if tokens[0].token_type == TokenType::Semicolon {
+                            tokens.remove(0); // Eat ';'
+                        } else {
+                            return Err("Expected ';' after assignment".to_string());
+                        }
+                        Ok(Statement::ExpressionStatement(expression))
+                    }
+
+                    // Not an assignment, parse as var decl
+                    _ => {
+                        let statement = parse_variable_declaration(tokens);
+                        if tokens
+                            .get(0)
+                            .map_or(false, |t| t.token_type == TokenType::Semicolon)
+                        {
+                            tokens.remove(0); // Eat ';'
+                        }
+                        Ok(Statement::VariableDeclaration(statement))
+                    }
+                }
+            } else {
+                Err("Unexpected end of tokens".to_string())
             }
-            Ok(Statement::VariableDeclaration(statement))
         }
         _ => Err("Unrecognized statement".to_string()),
     }
@@ -1246,11 +1376,8 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
 fn main() {
     let input = r#"
         int f() {
-            int a = k;
-
-            while (8 > 2) {
-                int b = 8;
-            }
+            int k = 1;
+            k += 2;
         }
     "#;
     let mut tokens = collect_tokens(input);
