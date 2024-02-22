@@ -19,6 +19,10 @@ enum TokenType {
     Comma,
     Semicolon,
     FieldAccessOp,
+    If,
+    Else,
+    For,
+    While,
     Return,
     Plus,
     Minus,
@@ -242,16 +246,21 @@ impl<'a> Lexer<'a> {
             Some('i') => {
                 let identifier = self.consume_identifier();
 
-                if identifier == "import" {
-                    Token {
+                match identifier.as_str() {
+                    "import" => Token {
                         token_type: TokenType::Import,
                         lexeme: identifier,
-                    }
-                } else {
-                    Token {
+                    },
+
+                    "if" => Token {
+                        token_type: TokenType::If,
+                        lexeme: identifier,
+                    },
+
+                    _ => Token {
                         token_type: TokenType::Identifier(identifier.clone()),
                         lexeme: identifier,
-                    }
+                    },
                 }
             }
 
@@ -296,6 +305,11 @@ impl<'a> Lexer<'a> {
                         lexeme: identifier,
                     },
 
+                    "for" => Token {
+                        token_type: TokenType::For,
+                        lexeme: identifier,
+                    },
+
                     _ => Token {
                         token_type: TokenType::Identifier(identifier.clone()),
                         lexeme: identifier,
@@ -307,6 +321,11 @@ impl<'a> Lexer<'a> {
                 let identifier = self.consume_identifier();
 
                 match identifier.as_str() {
+                    "else" => Token {
+                        token_type: TokenType::Else,
+                        lexeme: identifier,
+                    },
+
                     "export" => Token {
                         token_type: TokenType::Export,
                         lexeme: identifier,
@@ -321,6 +340,22 @@ impl<'a> Lexer<'a> {
                         token_type: TokenType::Identifier(identifier.clone()),
                         lexeme: identifier,
                     },
+                }
+            }
+
+            Some('w') => {
+                let identifier = self.consume_identifier();
+
+                if identifier == "while" {
+                    Token {
+                        token_type: TokenType::While,
+                        lexeme: identifier,
+                    }
+                } else {
+                    Token {
+                        token_type: TokenType::Identifier(identifier.clone()),
+                        lexeme: identifier,
+                    }
                 }
             }
 
