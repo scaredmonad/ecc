@@ -798,17 +798,10 @@ fn parse_assignment_expression(tokens: &mut Vec<Token>) -> Result<Expression, St
         _ => return Err("Expected identifier on the left side of assignment".to_string()),
     };
 
-    let operator = if matches!(tokens.get(0).map(|t| &t.token_type), Some(TokenType::Plus))
-        && matches!(tokens.get(1).map(|t| &t.token_type), Some(TokenType::Equal))
-    {
-        tokens.remove(0); // Eat '+'
-        tokens.remove(0); // Eat '='
-        AssignmentOperator::AddAssign
-    } else if matches!(tokens.get(0).map(|t| &t.token_type), Some(TokenType::Equal)) {
-        tokens.remove(0); // Eat '='
-        AssignmentOperator::Assign
-    } else {
-        return Err("Expected assignment operator".to_string());
+    let operator = match tokens.remove(0).token_type {
+        TokenType::Equal => AssignmentOperator::Assign,
+        TokenType::PlusEqual => AssignmentOperator::AddAssign,
+        _ => return Err("Expected assignment operator".to_string()),
     };
 
     let right = parse_expression(tokens);
@@ -1093,13 +1086,15 @@ fn parse_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
             Ok(Statement::Return(expression))
         }
         Some(TokenType::Identifier(_)) => {
-            // Check if this is an assignment by looking at the next token.
             if let Some(token) = tokens.get(1) {
                 match token.token_type {
-                    TokenType::Equal => {
+                    TokenType::Equal | TokenType::PlusEqual => {
                         // Parse as an assignment expression.
                         let expression = parse_assignment_expression(tokens)?;
-                        if tokens[0].token_type == TokenType::Semicolon {
+                        if tokens
+                            .get(0)
+                            .map_or(false, |t| t.token_type == TokenType::Semicolon)
+                        {
                             tokens.remove(0); // Eat ';'
                         } else {
                             return Err("Expected ';' after assignment".to_string());
@@ -1107,7 +1102,7 @@ fn parse_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
                         Ok(Statement::ExpressionStatement(expression))
                     }
 
-                    // Not an assignment, parse as var decl
+                    // var decl statement
                     _ => {
                         let statement = parse_variable_declaration(tokens);
                         if tokens
@@ -1378,6 +1373,10 @@ fn main() {
         int f() {
             int k = 1;
             k += 2;
+
+            while (k > 9) {
+                z = 8;
+            }
         }
     "#;
     let mut tokens = collect_tokens(input);
