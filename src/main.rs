@@ -1426,6 +1426,45 @@ fn parse_for_loop(tokens: &mut Vec<Token>) -> Result<Statement, String> {
     }))
 }
 
+#[test]
+fn assert_parse_for_stmt_empty() {
+    let input = r#"
+        int f() {
+            for (int i = 0; i < 10; i += 1) {}
+        }
+    "#;
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![Declaration::Function(FunctionDeclaration {
+                return_type: Type::Int,
+                identifier: Identifier("f".into()),
+                parameters: vec![],
+                body: vec![Statement::ForLoop(ForLoop {
+                    init: VariableDeclaration {
+                        data_type: Type::Int,
+                        identifier: Identifier("i".into()),
+                        value: Expression::IntLiteral(0)
+                    },
+                    test: Expression::Comparison(
+                        Box::new(Expression::Variable(Identifier("i".into()))),
+                        CompareOp::LessThan,
+                        Box::new(Expression::IntLiteral(10))
+                    ),
+                    update: Expression::Assignment(Box::new(AssignmentExpression {
+                        left: Identifier("i".into()),
+                        operator: AssignmentOperator::AddAssign,
+                        right: Box::new(Expression::IntLiteral(1))
+                    })),
+                    body: Some(vec![])
+                })]
+            }),]
+        }
+    );
+}
+
 // fn parse_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
 //     match tokens.get(0).map(|t| &t.token_type) {
 //         Some(TokenType::If) => parse_if_statement(tokens),
