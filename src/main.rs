@@ -547,6 +547,9 @@ struct AssignmentExpression {
 enum AssignmentOperator {
     Assign,    // '='
     AddAssign, // '+='
+    SubAssign, // '-='
+    MulAssign, // '*='
+    DivAssign, // '/='
 }
 
 #[derive(Debug, Clone)]
@@ -820,8 +823,13 @@ fn parse_assignment_expression(tokens: &mut Vec<Token>) -> Result<Expression, St
     let operator = match tokens.remove(0).token_type {
         TokenType::Equal => AssignmentOperator::Assign,
         TokenType::PlusEqual => AssignmentOperator::AddAssign,
+        TokenType::MinusEqual => AssignmentOperator::SubAssign,
+        TokenType::MulEqual => AssignmentOperator::MulAssign,
+        TokenType::DivEqual => AssignmentOperator::DivAssign,
         _ => return Err("Expected assignment operator".to_string()),
     };
+
+    dbg!(operator.clone());
 
     let right = parse_expression(tokens);
 
@@ -1381,7 +1389,7 @@ fn parse_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
         Some(TokenType::Identifier(_)) => {
             if let Some(token) = tokens.get(1) {
                 match token.token_type {
-                    TokenType::Equal | TokenType::PlusEqual => {
+                    TokenType::Equal | TokenType::PlusEqual | TokenType::MinusEqual | TokenType::MulEqual | TokenType::DivEqual => {
                         // Parse as an assignment expression.
                         let expression = parse_assignment_expression(tokens)?;
                         if tokens
@@ -1664,8 +1672,10 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
 fn main() {
     let input = r#"
         int f() {
-            k = 2;
-            k += 1;
+            i += 1;
+            j -= 1;
+            k *= 1;
+            m /= 1;
         }
     "#;
     let mut tokens = collect_tokens(input);
