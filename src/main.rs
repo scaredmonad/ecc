@@ -536,14 +536,14 @@ impl From<&str> for CompareOp {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 struct AssignmentExpression {
     left: Identifier,
     operator: AssignmentOperator,
     right: Box<Expression>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 enum AssignmentOperator {
     Assign,    // '='
     AddAssign, // '+='
@@ -637,6 +637,22 @@ impl PartialEq for CompareOp {
     }
 }
 
+impl PartialEq for AssignmentOperator {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (AssignmentOperator::Assign, AssignmentOperator::Assign) => true,
+            (AssignmentOperator::AddAssign, AssignmentOperator::AddAssign) => true,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq for AssignmentExpression {
+    fn eq(&self, other: &Self) -> bool {
+        self.left == other.left && self.operator == other.operator && self.right == other.right
+    }
+}
+
 impl PartialEq for Expression {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -653,6 +669,9 @@ impl PartialEq for Expression {
                 Expression::Comparison(lhs_a, lhs_op, lhs_b),
                 Expression::Comparison(rhs_a, rhs_op, rhs_b),
             ) => lhs_a == rhs_a && lhs_op == rhs_op && lhs_b == rhs_b,
+            (Expression::Assignment(ass_expr), Expression::Assignment(other_ass_expr)) => {
+                ass_expr == other_ass_expr
+            }
             _ => false,
         }
     }
@@ -811,6 +830,44 @@ fn parse_assignment_expression(tokens: &mut Vec<Token>) -> Result<Expression, St
         operator,
         right: Box::new(right),
     })))
+}
+
+#[test]
+fn assert_parse_compound_assign_expr() {
+    let input = r#"
+        int f() {
+            k = 2;
+            k += 1;
+        }
+    "#;
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![Declaration::Function(FunctionDeclaration {
+                return_type: Type::Int,
+                identifier: Identifier("f".into()),
+                parameters: vec![],
+                body: vec![
+                    Statement::ExpressionStatement(Expression::Assignment(Box::new(
+                        AssignmentExpression {
+                            left: Identifier("k".into()),
+                            operator: AssignmentOperator::Assign,
+                            right: Box::new(Expression::IntLiteral(2))
+                        }
+                    ))),
+                    Statement::ExpressionStatement(Expression::Assignment(Box::new(
+                        AssignmentExpression {
+                            left: Identifier("k".into()),
+                            operator: AssignmentOperator::AddAssign,
+                            right: Box::new(Expression::IntLiteral(1))
+                        }
+                    )))
+                ]
+            }),]
+        }
+    );
 }
 
 fn parse_expression(tokens: &mut Vec<Token>) -> Expression {
@@ -1008,6 +1065,211 @@ fn parse_if_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
     }))
 }
 
+#[test]
+fn assert_parse_if_stmt_empty() {
+    let input = r#"
+        int f() {
+            if (7 > 2) {}
+        }
+    "#;
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![Declaration::Function(FunctionDeclaration {
+                return_type: Type::Int,
+                identifier: Identifier("f".into()),
+                parameters: vec![],
+                body: vec![Statement::IfStatement(IfStatement {
+                    condition: Box::new(Expression::Comparison(
+                        Box::new(Expression::IntLiteral(7)),
+                        CompareOp::GreaterThan,
+                        Box::new(Expression::IntLiteral(2))
+                    )),
+                    body: vec![],
+                    alternative: None
+                })]
+            }),]
+        }
+    );
+}
+
+#[test]
+fn assert_parse_if_else_stmt_empty() {
+    let input = r#"
+        int f() {
+            if (7 > 2) {} else {}
+        }
+    "#;
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![Declaration::Function(FunctionDeclaration {
+                return_type: Type::Int,
+                identifier: Identifier("f".into()),
+                parameters: vec![],
+                body: vec![Statement::IfStatement(IfStatement {
+                    condition: Box::new(Expression::Comparison(
+                        Box::new(Expression::IntLiteral(7)),
+                        CompareOp::GreaterThan,
+                        Box::new(Expression::IntLiteral(2))
+                    )),
+                    body: vec![],
+                    alternative: Some(vec![])
+                })]
+            }),]
+        }
+    );
+}
+
+#[test]
+fn assert_parse_if_else_stmt_decls() {
+    let input = r#"
+        int f() {
+            if (7 > 2) {
+                int k = 2;
+                return 8;
+            } else {
+                return 6 - 2;
+            }
+        }
+    "#;
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![Declaration::Function(FunctionDeclaration {
+                return_type: Type::Int,
+                identifier: Identifier("f".into()),
+                parameters: vec![],
+                body: vec![Statement::IfStatement(IfStatement {
+                    condition: Box::new(Expression::Comparison(
+                        Box::new(Expression::IntLiteral(7)),
+                        CompareOp::GreaterThan,
+                        Box::new(Expression::IntLiteral(2))
+                    )),
+                    body: vec![
+                        Statement::VariableDeclaration(VariableDeclaration {
+                            data_type: Type::Int,
+                            identifier: Identifier("k".into()),
+                            value: Expression::IntLiteral(2)
+                        }),
+                        Statement::Return(Expression::IntLiteral(8))
+                    ],
+                    alternative: Some(vec![Statement::Return(Expression::Binary(
+                        Box::new(Expression::IntLiteral(6)),
+                        BinaryOp::Sub,
+                        Box::new(Expression::IntLiteral(2))
+                    ))])
+                })]
+            }),]
+        }
+    );
+}
+
+#[test]
+fn assert_parse_if_else_stmt_branching() {
+    let input = r#"
+        int f() {
+            if (7 > 2) {
+                if (5 < 9) {} else {}
+            }
+        }
+    "#;
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![Declaration::Function(FunctionDeclaration {
+                return_type: Type::Int,
+                identifier: Identifier("f".into()),
+                parameters: vec![],
+                body: vec![Statement::IfStatement(IfStatement {
+                    condition: Box::new(Expression::Comparison(
+                        Box::new(Expression::IntLiteral(7)),
+                        CompareOp::GreaterThan,
+                        Box::new(Expression::IntLiteral(2))
+                    )),
+                    body: vec![Statement::IfStatement(IfStatement {
+                        condition: Box::new(Expression::Comparison(
+                            Box::new(Expression::IntLiteral(5)),
+                            CompareOp::LessThan,
+                            Box::new(Expression::IntLiteral(9))
+                        )),
+                        body: vec![],
+                        alternative: Some(vec![])
+                    })],
+                    alternative: None
+                })]
+            }),]
+        }
+    );
+}
+
+#[test]
+fn assert_parse_if_else_stmt_multi_branching() {
+    let input = r#"
+        int f() {
+            if (7 > 2) {
+                if (5 < 9) {
+                    return 1;
+                } else {
+                    return 2;
+                }
+            } else {
+                if (5 < 9) {
+                    return 3;
+                } else {
+                    return 4;
+                }
+            }
+        }
+    "#;
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![Declaration::Function(FunctionDeclaration {
+                return_type: Type::Int,
+                identifier: Identifier("f".into()),
+                parameters: vec![],
+                body: vec![Statement::IfStatement(IfStatement {
+                    condition: Box::new(Expression::Comparison(
+                        Box::new(Expression::IntLiteral(7)),
+                        CompareOp::GreaterThan,
+                        Box::new(Expression::IntLiteral(2))
+                    )),
+                    body: vec![Statement::IfStatement(IfStatement {
+                        condition: Box::new(Expression::Comparison(
+                            Box::new(Expression::IntLiteral(5)),
+                            CompareOp::LessThan,
+                            Box::new(Expression::IntLiteral(9))
+                        )),
+                        body: vec![Statement::Return(Expression::IntLiteral(1))],
+                        alternative: Some(vec![Statement::Return(Expression::IntLiteral(2))])
+                    })],
+                    // outer else
+                    alternative: Some(vec![Statement::IfStatement(IfStatement {
+                        condition: Box::new(Expression::Comparison(
+                            Box::new(Expression::IntLiteral(5)),
+                            CompareOp::LessThan,
+                            Box::new(Expression::IntLiteral(9))
+                        )),
+                        body: vec![Statement::Return(Expression::IntLiteral(3))],
+                        alternative: Some(vec![Statement::Return(Expression::IntLiteral(4))])
+                    })])
+                })]
+            }),]
+        }
+    );
+}
+
 fn parse_while_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
     // Ensure is 'while'
     match tokens.remove(0).token_type {
@@ -1043,6 +1305,37 @@ fn parse_while_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
         condition,
         body,
     }))
+}
+
+#[test]
+fn assert_parse_while_stmt_empty() {
+    // We only need to check this once bc it's also statement like if..else
+    // but with no alternative, so branching only.
+    let input = r#"
+        int f() {
+            while (7 > 2) {}
+        }
+    "#;
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![Declaration::Function(FunctionDeclaration {
+                return_type: Type::Int,
+                identifier: Identifier("f".into()),
+                parameters: vec![],
+                body: vec![Statement::WhileStatement(WhileStatement {
+                    condition: Box::new(Expression::Comparison(
+                        Box::new(Expression::IntLiteral(7)),
+                        CompareOp::GreaterThan,
+                        Box::new(Expression::IntLiteral(2))
+                    )),
+                    body: vec![]
+                })]
+            }),]
+        }
+    );
 }
 
 // fn parse_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
@@ -1371,12 +1664,8 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
 fn main() {
     let input = r#"
         int f() {
-            int k = 1;
-            k += 2;
-
-            while (k > 9) {
-                z = 8;
-            }
+            k = 2;
+            k += 1;
         }
     "#;
     let mut tokens = collect_tokens(input);
