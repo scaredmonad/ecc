@@ -645,6 +645,9 @@ impl PartialEq for AssignmentOperator {
         match (self, other) {
             (AssignmentOperator::Assign, AssignmentOperator::Assign) => true,
             (AssignmentOperator::AddAssign, AssignmentOperator::AddAssign) => true,
+            (AssignmentOperator::SubAssign, AssignmentOperator::SubAssign) => true,
+            (AssignmentOperator::MulAssign, AssignmentOperator::MulAssign) => true,
+            (AssignmentOperator::DivAssign, AssignmentOperator::DivAssign) => true,
             _ => false,
         }
     }
@@ -829,8 +832,6 @@ fn parse_assignment_expression(tokens: &mut Vec<Token>) -> Result<Expression, St
         _ => return Err("Expected assignment operator".to_string()),
     };
 
-    dbg!(operator.clone());
-
     let right = parse_expression(tokens);
 
     Ok(Expression::Assignment(Box::new(AssignmentExpression {
@@ -846,6 +847,9 @@ fn assert_parse_compound_assign_expr() {
         int f() {
             k = 2;
             k += 1;
+            k -= 1;
+            k *= 1;
+            k /= 1;
         }
     "#;
     let mut tokens = collect_tokens(input);
@@ -871,7 +875,28 @@ fn assert_parse_compound_assign_expr() {
                             operator: AssignmentOperator::AddAssign,
                             right: Box::new(Expression::IntLiteral(1))
                         }
-                    )))
+                    ))),
+                    Statement::ExpressionStatement(Expression::Assignment(Box::new(
+                        AssignmentExpression {
+                            left: Identifier("k".into()),
+                            operator: AssignmentOperator::SubAssign,
+                            right: Box::new(Expression::IntLiteral(1))
+                        }
+                    ))),
+                    Statement::ExpressionStatement(Expression::Assignment(Box::new(
+                        AssignmentExpression {
+                            left: Identifier("k".into()),
+                            operator: AssignmentOperator::MulAssign,
+                            right: Box::new(Expression::IntLiteral(1))
+                        }
+                    ))),
+                    Statement::ExpressionStatement(Expression::Assignment(Box::new(
+                        AssignmentExpression {
+                            left: Identifier("k".into()),
+                            operator: AssignmentOperator::DivAssign,
+                            right: Box::new(Expression::IntLiteral(1))
+                        }
+                    ))),
                 ]
             }),]
         }
@@ -1389,7 +1414,11 @@ fn parse_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
         Some(TokenType::Identifier(_)) => {
             if let Some(token) = tokens.get(1) {
                 match token.token_type {
-                    TokenType::Equal | TokenType::PlusEqual | TokenType::MinusEqual | TokenType::MulEqual | TokenType::DivEqual => {
+                    TokenType::Equal
+                    | TokenType::PlusEqual
+                    | TokenType::MinusEqual
+                    | TokenType::MulEqual
+                    | TokenType::DivEqual => {
                         // Parse as an assignment expression.
                         let expression = parse_assignment_expression(tokens)?;
                         if tokens
