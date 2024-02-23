@@ -18,7 +18,7 @@ enum TokenType {
     RightBrace,
     Comma,
     Semicolon,
-    FieldAccessOp,
+    Dot,
     If,
     Else,
     For,
@@ -278,7 +278,7 @@ impl<'a> Lexer<'a> {
                 self.advance();
 
                 Token {
-                    token_type: TokenType::FieldAccessOp,
+                    token_type: TokenType::Dot,
                     lexeme: ".".to_string(),
                 }
             }
@@ -581,6 +581,14 @@ struct WhileStatement {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+struct ForLoop {
+    init: VariableDeclaration,
+    test: Expression,
+    update: Expression,
+    body: Option<Vec<Statement>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 enum Statement {
     VariableDeclaration(VariableDeclaration),
     Return(Expression),
@@ -588,6 +596,7 @@ enum Statement {
     IfStatement(IfStatement),
     WhileStatement(WhileStatement),
     ExpressionStatement(Expression),
+    ForLoop(ForLoop),
 }
 
 #[derive(Debug, Clone)]
@@ -1371,6 +1380,52 @@ fn assert_parse_while_stmt_empty() {
     );
 }
 
+fn parse_for_loop(tokens: &mut Vec<Token>) -> Result<Statement, String> {
+    match tokens.remove(0).token_type {
+        TokenType::For => (), // Eat 'for'
+        _ => return Err("Expected 'for'".to_string()),
+    }
+
+    if tokens.remove(0).token_type != TokenType::LeftParen {
+        return Err("Expected '(' after 'for'".to_string()); // Eat '('
+    }
+
+    let init = parse_variable_declaration(tokens);
+    if tokens.remove(0).token_type != TokenType::Semicolon {
+        return Err("Expected ';' after test condition in for loop".to_string());
+    }
+
+    let test = parse_expression(tokens);
+    if tokens.remove(0).token_type != TokenType::Semicolon {
+        return Err("Expected ';' after test condition in for loop".to_string());
+    }
+
+    let update = parse_assignment_expression(tokens)?;
+
+    if tokens.remove(0).token_type != TokenType::RightParen {
+        return Err("Expected ')' after for loop clauses".to_string()); // Eat ')'
+    }
+
+    let mut body = Vec::new();
+    if tokens[0].token_type == TokenType::LeftBrace {
+        tokens.remove(0); // Eat '{'
+        while tokens[0].token_type != TokenType::RightBrace {
+            let statement = parse_statement(tokens)?;
+            body.push(statement);
+        }
+        tokens.remove(0); // Eat '}'
+    } else {
+        return Err("Expected '{' to start the body of the for loop".to_string());
+    }
+
+    Ok(Statement::ForLoop(ForLoop {
+        init,
+        test,
+        update,
+        body: Some(body),
+    }))
+}
+
 // fn parse_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
 //     match tokens.get(0).map(|t| &t.token_type) {
 //         Some(TokenType::If) => parse_if_statement(tokens),
@@ -1403,6 +1458,7 @@ fn parse_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
     match tokens.get(0).map(|t| &t.token_type) {
         Some(TokenType::If) => parse_if_statement(tokens),
         Some(TokenType::While) => parse_while_statement(tokens),
+        Some(TokenType::For) => parse_for_loop(tokens),
         Some(TokenType::Return) => {
             tokens.remove(0); // Eat 'return'
             let expression = parse_expression(tokens);
@@ -1701,10 +1757,9 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
 fn main() {
     let input = r#"
         int f() {
-            i += 1;
-            j -= 1;
-            k *= 1;
-            m /= 1;
+            for (int i = 0; i < 10; i += 1) {
+                int next = i + 1;
+            }
         }
     "#;
     let mut tokens = collect_tokens(input);
