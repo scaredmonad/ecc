@@ -589,10 +589,9 @@ struct ForLoop {
     body: Option<Vec<Statement>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 struct CallExpression {
     callee: Identifier,
-    // Optional function overloading with explicit type parameters
     type_parameters: Option<Vec<Type>>,
     parameters: Vec<Expression>,
 }
@@ -677,6 +676,14 @@ impl PartialEq for AssignmentExpression {
     }
 }
 
+impl PartialEq for CallExpression {
+    fn eq(&self, other: &Self) -> bool {
+        self.callee == other.callee
+            && self.type_parameters == other.type_parameters
+            && self.parameters == other.parameters
+    }
+}
+
 impl PartialEq for Expression {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -695,6 +702,9 @@ impl PartialEq for Expression {
             ) => lhs_a == rhs_a && lhs_op == rhs_op && lhs_b == rhs_b,
             (Expression::Assignment(ass_expr), Expression::Assignment(other_ass_expr)) => {
                 ass_expr == other_ass_expr
+            }
+            (Expression::Call(call_expr), Expression::Call(other_call_expr)) => {
+                call_expr == other_call_expr
             }
             _ => false,
         }
@@ -977,6 +987,72 @@ fn parse_call_expression(tokens: &mut Vec<Token>) -> Result<Expression, String> 
         type_parameters,
         parameters,
     })))
+}
+
+#[test]
+fn assert_parse_call_expr_stmt() {
+    let input = r#"
+        int f() {
+            load<int>(2, 3);
+        }
+    "#;
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![Declaration::Function(FunctionDeclaration {
+                return_type: Type::Int,
+                identifier: Identifier("f".into()),
+                parameters: vec![],
+                body: vec![Statement::ExpressionStatement(Expression::Call(Box::new(
+                    CallExpression {
+                        callee: Identifier("load".into()),
+                        type_parameters: Some(vec![Type::Int]),
+                        parameters: vec![Expression::IntLiteral(2), Expression::IntLiteral(3),]
+                    }
+                )))]
+            }),]
+        }
+    );
+}
+
+#[test]
+fn assert_parse_call_expr_var_decl() {
+    let input = r#"
+        int f() {
+            int a = load<int, bool>(2, 3, k > 7);
+        }
+    "#;
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![Declaration::Function(FunctionDeclaration {
+                return_type: Type::Int,
+                identifier: Identifier("f".into()),
+                parameters: vec![],
+                body: vec![Statement::VariableDeclaration(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("a".into()),
+                    value: Expression::Call(Box::new(CallExpression {
+                        callee: Identifier("load".into()),
+                        type_parameters: Some(vec![Type::Int, Type::Bool]),
+                        parameters: vec![
+                            Expression::IntLiteral(2),
+                            Expression::IntLiteral(3),
+                            Expression::Comparison(
+                                Box::new(Expression::Variable(Identifier("k".into()))),
+                                CompareOp::GreaterThan,
+                                Box::new(Expression::IntLiteral(7))
+                            )
+                        ]
+                    }))
+                })]
+            }),]
+        }
+    );
 }
 
 fn parse_expression(tokens: &mut Vec<Token>) -> Expression {
