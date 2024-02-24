@@ -496,6 +496,7 @@ enum Expression {
     Binary(Box<Expression>, BinaryOp, Box<Expression>),
     Comparison(Box<Expression>, CompareOp, Box<Expression>),
     Assignment(Box<AssignmentExpression>),
+    Call(Box<CallExpression>),
 }
 
 #[derive(Debug, Clone)]
@@ -586,6 +587,14 @@ struct ForLoop {
     test: Expression,
     update: Expression,
     body: Option<Vec<Statement>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct CallExpression {
+    callee: Identifier,
+    // Optional function overloading with explicit type parameters
+    type_parameters: Option<Vec<Type>>,
+    parameters: Vec<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -912,12 +921,75 @@ fn assert_parse_compound_assign_expr() {
     );
 }
 
+fn parse_call_expression(tokens: &mut Vec<Token>) -> Result<Expression, String> {
+    let callee = match tokens.remove(0).token_type {
+        TokenType::Identifier(name) => Identifier(name),
+        _ => return Err("Expected function name".to_string()),
+    };
+
+    let type_parameters = if matches!(tokens.get(0).map(|t| &t.token_type), Some(TokenType::Lt)) {
+        tokens.remove(0); // Eat '<'
+        let mut types = Vec::new();
+        while !matches!(tokens.get(0).map(|t| &t.token_type), Some(TokenType::Gt)) {
+            match &tokens.get(0) {
+                Some(token) => match &token.token_type {
+                    TokenType::Identifier(type_str) => {
+                        types.push(Type::from(type_str.as_str()));
+                        tokens.remove(0); // Eat type ident
+                    },
+                    _ => return Err("Expected type identifier within type parameters".to_string()),
+                },
+                None => return Err("Unexpected end of tokens while parsing type parameters".to_string()),
+            }
+
+            if matches!(tokens.get(0).map(|t| &t.token_type), Some(TokenType::Comma)) {
+                tokens.remove(0); // Eat ',' allows parsing next type ident
+            }
+        }
+        tokens.remove(0); // Eat '>'
+        Some(types)
+    } else {
+        None
+    };
+
+    if tokens.remove(0).token_type != TokenType::LeftParen {
+        return Err("Expected '(' after function name".to_string()); // Eat '('
+    }
+
+    let mut parameters = Vec::new();
+    while !matches!(tokens.get(0).map(|t| &t.token_type), Some(TokenType::RightParen)) {
+        let parameter = parse_expression(tokens);
+        parameters.push(parameter);
+
+        if matches!(tokens.get(0).map(|t| &t.token_type), Some(TokenType::Comma)) {
+            tokens.remove(0); // Eat ',' allows parsing the next call parameter
+        }
+    }
+    tokens.remove(0); // Eat ')'
+
+    Ok(Expression::Call(Box::new(CallExpression {
+        callee,
+        type_parameters,
+        parameters,
+    })))
+}
+
 fn parse_expression(tokens: &mut Vec<Token>) -> Expression {
     // Parse the first operand of the expression.
     let mut left_operand = match tokens.remove(0).token_type {
         TokenType::BoolLiteral(value) => Expression::BoolLiteral(value),
         TokenType::IntLiteral(value) => Expression::IntLiteral(value),
-        TokenType::Identifier(name) => Expression::Variable(Identifier(name)),
+        // TokenType::Identifier(name) => Expression::Variable(Identifier(name)),
+        TokenType::Identifier(name) => {
+            if matches!(tokens.get(0), Some(Token { token_type: TokenType::LeftParen, .. })) {
+                // Temporarily re-insert the identifier token to the front of the tokens list.
+                tokens.insert(0, Token { token_type: TokenType::Identifier(name.clone()), lexeme: name.clone() });
+
+                parse_call_expression(tokens).unwrap()
+            } else {
+                Expression::Variable(Identifier(name)) // Regular ident.
+            }
+        },        
         _ => panic!("Invalid expression"),
     };
 
@@ -1527,6 +1599,15 @@ fn parse_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
                         Ok(Statement::ExpressionStatement(expression))
                     }
 
+                    // Likely a call expr, routes to parse_call_expression
+                    TokenType::LeftParen | TokenType::Lt => {
+                        let expression = parse_call_expression(tokens)?;
+                        if tokens.get(0).map_or(false, |t| t.token_type == TokenType::Semicolon) {
+                            tokens.remove(0); // Consume ';'
+                        }
+                        Ok(Statement::ExpressionStatement(expression))
+                    },
+
                     // var decl statement
                     _ => {
                         let statement = parse_variable_declaration(tokens);
@@ -1796,9 +1877,7 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
 fn main() {
     let input = r#"
         int f() {
-            for (int i = 0; i < 10; i += 1) {
-                int next = i + 1;
-            }
+            int a = print<int>(1, 2);
         }
     "#;
     let mut tokens = collect_tokens(input);
