@@ -24,17 +24,22 @@ enum TokenType {
     For,
     While,
     Return,
+    Equal,
+    EqEq,
     Plus,
     Minus,
-    Equal,
     Mul,
     Div,
+    Bang,
     PlusEqual,
     MinusEqual,
     MulEqual,
     DivEqual,
+    BangEqual,
     Gt,
     Lt,
+    GtEq,
+    LtEq,
     EOF,
 }
 
@@ -247,33 +252,86 @@ impl<'a> Lexer<'a> {
                 }
             }
 
+            Some('!') => {
+                self.advance();
+
+                if self.current_char == Some('=') {
+                    self.advance();
+
+                    Token {
+                        token_type: TokenType::BangEqual,
+                        lexeme: "!=".to_string(),
+                    }
+                } else {
+                    Token {
+                        token_type: TokenType::Bang,
+                        lexeme: "!".to_string(),
+                    }
+                }
+            }
+
             Some('>') => {
                 self.advance();
 
-                Token {
-                    token_type: TokenType::Gt,
-                    lexeme: ">".to_string(),
+                if self.current_char == Some('=') {
+                    self.advance();
+
+                    Token {
+                        token_type: TokenType::GtEq,
+                        lexeme: ">=".to_string(),
+                    }
+                } else {
+                    Token {
+                        token_type: TokenType::Gt,
+                        lexeme: ">".to_string(),
+                    }
                 }
             }
 
             Some('<') => {
                 self.advance();
 
-                Token {
-                    token_type: TokenType::Lt,
-                    lexeme: "<".to_string(),
+                if self.current_char == Some('=') {
+                    self.advance();
+
+                    Token {
+                        token_type: TokenType::LtEq,
+                        lexeme: "<=".to_string(),
+                    }
+                } else {
+                    Token {
+                        token_type: TokenType::Lt,
+                        lexeme: "<".to_string(),
+                    }
                 }
             }
 
             Some('=') => {
                 self.advance();
 
-                Token {
-                    token_type: TokenType::Equal,
-                    lexeme: "=".to_string(),
+                if self.current_char == Some('=') {
+                    self.advance();
+
+                    Token {
+                        token_type: TokenType::EqEq,
+                        lexeme: "==".to_string(),
+                    }
+                } else {
+                    Token {
+                        token_type: TokenType::Equal,
+                        lexeme: "=".to_string(),
+                    }
                 }
             }
 
+            // Some('=') => {
+            //     self.advance();
+
+            //     Token {
+            //         token_type: TokenType::Equal,
+            //         lexeme: "=".to_string(),
+            //     }
+            // }
             Some('.') => {
                 self.advance();
 
@@ -450,21 +508,10 @@ fn collect_tokens(input: &str) -> Vec<Token> {
 #[test]
 fn assert_tokenize_input() {
     let input = r#"
-        import std.fs;
-        import std.fs.read;
-
-        export int add(int a, int b) {
-            return a + b;
-        }
-
-        int main() {
-            int[] c = [
-                add(1, 2),
-                add(5, 10)
-            ];
-        }
+        if (a < 5) {}
     "#;
     let tokens = collect_tokens(input);
+    dbg!(tokens.clone());
     assert_eq!(tokens.len() > 0, true);
 }
 
@@ -523,7 +570,7 @@ impl From<&str> for BinaryOp {
 enum CompareOp {
     GreaterThan,
     LessThan,
-    Equal,
+    // Equal,
 }
 
 impl From<&str> for CompareOp {
@@ -531,7 +578,7 @@ impl From<&str> for CompareOp {
         match s {
             ">" => CompareOp::GreaterThan,
             "<" => CompareOp::LessThan,
-            "==" => CompareOp::Equal,
+            // "==" => CompareOp::Equal,
             _ => panic!("Invalid comparison operator"),
         }
     }
@@ -651,7 +698,7 @@ impl PartialEq for CompareOp {
         match (self, other) {
             (CompareOp::GreaterThan, CompareOp::GreaterThan) => true,
             (CompareOp::LessThan, CompareOp::LessThan) => true,
-            (CompareOp::Equal, CompareOp::Equal) => true,
+            // (CompareOp::Equal, CompareOp::Equal) => true,
             _ => false,
         }
     }
