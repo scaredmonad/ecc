@@ -1257,22 +1257,76 @@ fn assert_parse_var_decl_binary_expr() {
 
 #[test]
 fn assert_parse_var_decl_compare_expr() {
-    let input = "bool T = 7 > 2;";
+    let input = r#"
+        bool T = 7 > 2;
+        bool T = 7 < 2;
+        bool T = 7 >= 2;
+        bool T = 7 <= 2;
+        bool T = 7 == 2;
+        bool T = 7 != 2;
+    "#;
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
     dbg!(program.clone());
     assert_eq!(
         program,
         Program {
-            declarations: vec![Declaration::Variable(VariableDeclaration {
-                data_type: Type::Int,
-                identifier: Identifier("T".into()),
-                value: Expression::Comparison(
-                    Box::new(Expression::IntLiteral(7)),
-                    CompareOp::GreaterThan,
-                    Box::new(Expression::IntLiteral(2))
-                )
-            }),]
+            declarations: vec![
+                Declaration::Variable(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("T".into()),
+                    value: Expression::Comparison(
+                        Box::new(Expression::IntLiteral(7)),
+                        CompareOp::GreaterThan,
+                        Box::new(Expression::IntLiteral(2))
+                    )
+                }),
+                Declaration::Variable(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("T".into()),
+                    value: Expression::Comparison(
+                        Box::new(Expression::IntLiteral(7)),
+                        CompareOp::LessThan,
+                        Box::new(Expression::IntLiteral(2))
+                    )
+                }),
+                Declaration::Variable(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("T".into()),
+                    value: Expression::Comparison(
+                        Box::new(Expression::IntLiteral(7)),
+                        CompareOp::GreaterThanOrEqual,
+                        Box::new(Expression::IntLiteral(2))
+                    )
+                }),
+                Declaration::Variable(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("T".into()),
+                    value: Expression::Comparison(
+                        Box::new(Expression::IntLiteral(7)),
+                        CompareOp::LessThanOrEqual,
+                        Box::new(Expression::IntLiteral(2))
+                    )
+                }),
+                Declaration::Variable(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("T".into()),
+                    value: Expression::Comparison(
+                        Box::new(Expression::IntLiteral(7)),
+                        CompareOp::StrictEqual,
+                        Box::new(Expression::IntLiteral(2))
+                    )
+                }),
+                Declaration::Variable(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("T".into()),
+                    value: Expression::Comparison(
+                        Box::new(Expression::IntLiteral(7)),
+                        CompareOp::StrictUnequal,
+                        Box::new(Expression::IntLiteral(2))
+                    )
+                }),
+            ]
         }
     );
 }
@@ -1657,7 +1711,9 @@ fn parse_for_loop(tokens: &mut Vec<Token>) -> Result<Statement, String> {
 fn assert_parse_for_stmt_empty() {
     let input = r#"
         int f() {
-            for (int i = 0; i < 10; i += 1) {}
+            for (int i = 0; i < 10; i += 1) {
+                int a = 2;
+            }
         }
     "#;
     let mut tokens = collect_tokens(input);
