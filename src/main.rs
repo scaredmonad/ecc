@@ -508,7 +508,7 @@ fn collect_tokens(input: &str) -> Vec<Token> {
 #[test]
 fn assert_tokenize_input() {
     let input = r#"
-        if (a < 5) {}
+        <= >= == ! != ! =
     "#;
     let tokens = collect_tokens(input);
     dbg!(tokens.clone());
@@ -568,9 +568,12 @@ impl From<&str> for BinaryOp {
 
 #[derive(Debug, Clone)]
 enum CompareOp {
-    GreaterThan,
-    LessThan,
-    // Equal,
+    GreaterThan,        // >
+    LessThan,           // <
+    GreaterThanOrEqual, // >=
+    LessThanOrEqual,    // <=
+    StrictEqual,        // ==
+    StrictUnequal,      // !=
 }
 
 impl From<&str> for CompareOp {
@@ -578,7 +581,10 @@ impl From<&str> for CompareOp {
         match s {
             ">" => CompareOp::GreaterThan,
             "<" => CompareOp::LessThan,
-            // "==" => CompareOp::Equal,
+            ">=" => CompareOp::GreaterThanOrEqual,
+            "<=" => CompareOp::LessThanOrEqual,
+            "==" => CompareOp::StrictEqual,
+            "!=" => CompareOp::StrictUnequal,
             _ => panic!("Invalid comparison operator"),
         }
     }
@@ -698,7 +704,10 @@ impl PartialEq for CompareOp {
         match (self, other) {
             (CompareOp::GreaterThan, CompareOp::GreaterThan) => true,
             (CompareOp::LessThan, CompareOp::LessThan) => true,
-            // (CompareOp::Equal, CompareOp::Equal) => true,
+            (CompareOp::GreaterThanOrEqual, CompareOp::GreaterThanOrEqual) => true,
+            (CompareOp::LessThanOrEqual, CompareOp::LessThanOrEqual) => true,
+            (CompareOp::StrictEqual, CompareOp::StrictEqual) => true,
+            (CompareOp::StrictUnequal, CompareOp::StrictUnequal) => true,
             _ => false,
         }
     }
@@ -1145,7 +1154,13 @@ fn parse_expression(tokens: &mut Vec<Token>) -> Expression {
                 );
             }
 
-            TokenType::Gt | TokenType::Lt | TokenType::Equal => {
+            TokenType::Gt
+            | TokenType::Lt
+            | TokenType::Equal
+            | TokenType::GtEq
+            | TokenType::LtEq
+            | TokenType::EqEq
+            | TokenType::BangEqual => {
                 tokens.remove(0); // Eat op token.
                 let right_operand = parse_expression(tokens);
                 left_operand = Expression::Comparison(
@@ -1245,6 +1260,7 @@ fn assert_parse_var_decl_compare_expr() {
     let input = "bool T = 7 > 2;";
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
+    dbg!(program.clone());
     assert_eq!(
         program,
         Program {
