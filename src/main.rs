@@ -784,6 +784,12 @@ impl PartialEq for CallExpression {
     }
 }
 
+impl PartialEq for AsmBlock {
+    fn eq(&self, other: &Self) -> bool {
+        self.target == other.target && self.instr_field == other.instr_field
+    }
+}
+
 impl PartialEq for Expression {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -831,6 +837,7 @@ impl PartialEq for Declaration {
         match (self, other) {
             (Declaration::Variable(lhs), Declaration::Variable(rhs)) => lhs == rhs,
             (Declaration::Function(lhs), Declaration::Function(rhs)) => lhs == rhs,
+            (Declaration::AsmBlock(lhs), Declaration::AsmBlock(rhs)) => lhs == rhs,
             _ => false,
         }
     }
@@ -1182,16 +1189,56 @@ fn parse_asm_block(tokens: &mut Vec<Token>) -> Result<AsmBlock, String> {
             TokenType::RightBrace => {
                 tokens.remove(0); // Eat '}'
                 break;
-            },
+            }
             _ => {
                 // Add the current token's lexeme to instr_field and eat.
                 instr_field.push_str(&token.lexeme);
                 tokens.remove(0);
-            },
+            }
         }
     }
 
-    Ok(AsmBlock { target, instr_field })
+    Ok(AsmBlock {
+        target,
+        instr_field,
+    })
+}
+
+#[test]
+fn assert_parse_asm_block_empty() {
+    let input = r#"
+        int a = 5;
+        asm (target = default) {}
+        int f() {}
+    "#;
+    let mut tokens = collect_tokens(input);
+    let program = parse_program(&mut tokens);
+    assert_eq!(
+        program,
+        Program {
+            declarations: vec![
+                Declaration::Variable(VariableDeclaration {
+                    data_type: Type::Int,
+                    identifier: Identifier("a".into()),
+                    value: Expression::IntLiteral(5)
+                }),
+                Declaration::AsmBlock(AsmBlock {
+                    target: Expression::Assignment(Box::new(AssignmentExpression {
+                        left: Identifier("target".into()),
+                        operator: AssignmentOperator::Assign,
+                        right: Box::new(Expression::Variable(Identifier("default".into())))
+                    })),
+                    instr_field: "".into()
+                }),
+                Declaration::Function(FunctionDeclaration {
+                    return_type: Type::Int,
+                    identifier: Identifier("f".into()),
+                    parameters: vec![],
+                    body: vec![]
+                }),
+            ]
+        }
+    );
 }
 
 fn parse_expression(tokens: &mut Vec<Token>) -> Expression {
@@ -2160,13 +2207,11 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
                         tokens.remove(0); // Eat ';'
                     }
                 }
-            },
+            }
 
-            TokenType::Asm => {
-                match parse_asm_block(tokens) {
-                    Ok(asm_block) => declarations.push(Declaration::AsmBlock(asm_block)),
-                    Err(e) => panic!("Failed to parse asm block: {}", e),
-                }
+            TokenType::Asm => match parse_asm_block(tokens) {
+                Ok(asm_block) => declarations.push(Declaration::AsmBlock(asm_block)),
+                Err(e) => panic!("Failed to parse asm block: {}", e),
             },
 
             _ => {
