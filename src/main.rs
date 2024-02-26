@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
-use std::str::Chars;
 
 #[derive(Debug, Clone, PartialEq)]
 enum TokenType {
@@ -53,7 +52,7 @@ struct Token {
 }
 
 struct Lexer<'a> {
-    input: Chars<'a>,
+    input: std::str::Chars<'a>,
     current_char: Option<char>,
 }
 
@@ -552,19 +551,44 @@ fn assert_tokenize_input() {
     assert_eq!(tokens.len() > 0, true);
 }
 
+// Ref: https://webassembly.github.io/spec/core/syntax/types.html
 #[derive(Debug, Clone)]
 enum Type {
-    Int,
+    Int32,
+    Int64,
+    Uint32,
+    Uint64,
     Bool,
+    Char, // @todo: funcref & externref which work with the output.
+          /* Entries for SIMD vector types, which we can represent as packed floats or
+          4 blocks of 32-bit ints, etc, accordingly. */
 }
 
 impl From<&str> for Type {
     fn from(s: &str) -> Self {
         match s {
-            "int" => Type::Int,
+            "i32" => Type::Int32,
+            "i64" => Type::Int64,
+            "u32" => Type::Uint32,
+            "u64" => Type::Uint64,
             "bool" => Type::Bool,
+            "char" => Type::Char,
             _ => panic!("Invalid type"),
         }
+    }
+}
+
+impl std::fmt::Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let type_str = match self {
+            Type::Int32 => "i32",
+            Type::Int64 => "i64",
+            Type::Uint32 => "u32",
+            Type::Uint64 => "u64",
+            Type::Bool => "bool",
+            Type::Char => "char",
+        };
+        write!(f, "{}", type_str)
     }
 }
 
@@ -718,7 +742,7 @@ struct Program {
 impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Type::Int, Type::Int) => true,
+            (Type::Int32, Type::Int32) => true,
             (Type::Bool, Type::Bool) => true,
             _ => false,
         }
@@ -896,14 +920,14 @@ fn parse_variable_declaration(tokens: &mut Vec<Token>) -> VariableDeclaration {
 
 #[test]
 fn assert_parse_var_decl() {
-    let input = "int a = 5;";
+    let input = "i32 a = 5;";
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
     assert_eq!(
         program,
         Program {
             declarations: vec![Declaration::Variable(VariableDeclaration {
-                data_type: Type::Int,
+                data_type: Type::Int32,
                 identifier: Identifier("a".into()),
                 value: Expression::IntLiteral(5)
             })]
@@ -913,7 +937,7 @@ fn assert_parse_var_decl() {
 
 #[test]
 fn assert_parse_multi_var_decl() {
-    let input = "int a = 5; int b = 9;";
+    let input = "i32 a = 5; i32 b = 9;";
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
     assert_eq!(
@@ -921,12 +945,12 @@ fn assert_parse_multi_var_decl() {
         Program {
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("a".into()),
                     value: Expression::IntLiteral(5)
                 }),
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("b".into()),
                     value: Expression::IntLiteral(9)
                 })
@@ -937,14 +961,14 @@ fn assert_parse_multi_var_decl() {
 
 #[test]
 fn assert_parse_uninit_var_decl() {
-    let input = "int a;";
+    let input = "i32 a;";
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
     assert_eq!(
         program,
         Program {
             declarations: vec![Declaration::Variable(VariableDeclaration {
-                data_type: Type::Int,
+                data_type: Type::Int32,
                 identifier: Identifier("a".into()),
                 value: Expression::Uninit
             })]
@@ -979,7 +1003,7 @@ fn parse_assignment_expression(tokens: &mut Vec<Token>) -> Result<Expression, St
 #[test]
 fn assert_parse_compound_assign_expr() {
     let input = r#"
-        int f() {
+        i32 f() {
             k = 2;
             k += 1;
             k -= 1;
@@ -993,7 +1017,7 @@ fn assert_parse_compound_assign_expr() {
         program,
         Program {
             declarations: vec![Declaration::Function(FunctionDeclaration {
-                return_type: Type::Int,
+                return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
                 body: vec![
@@ -1099,8 +1123,8 @@ fn parse_call_expression(tokens: &mut Vec<Token>) -> Result<Expression, String> 
 #[test]
 fn assert_parse_call_expr_stmt() {
     let input = r#"
-        int f() {
-            load<int>(2, 3);
+        i32 f() {
+            load<i32>(2, 3);
         }
     "#;
     let mut tokens = collect_tokens(input);
@@ -1109,13 +1133,13 @@ fn assert_parse_call_expr_stmt() {
         program,
         Program {
             declarations: vec![Declaration::Function(FunctionDeclaration {
-                return_type: Type::Int,
+                return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
                 body: vec![Statement::ExpressionStatement(Expression::Call(Box::new(
                     CallExpression {
                         callee: Identifier("load".into()),
-                        type_parameters: Some(vec![Type::Int]),
+                        type_parameters: Some(vec![Type::Int32]),
                         parameters: vec![Expression::IntLiteral(2), Expression::IntLiteral(3),]
                     }
                 )))]
@@ -1127,8 +1151,8 @@ fn assert_parse_call_expr_stmt() {
 #[test]
 fn assert_parse_call_expr_var_decl() {
     let input = r#"
-        int f() {
-            int a = load<int, bool>(2, 3, k > 7);
+        i32 f() {
+            i32 a = load<i32, bool>(2, 3, k > 7);
         }
     "#;
     let mut tokens = collect_tokens(input);
@@ -1137,15 +1161,15 @@ fn assert_parse_call_expr_var_decl() {
         program,
         Program {
             declarations: vec![Declaration::Function(FunctionDeclaration {
-                return_type: Type::Int,
+                return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
                 body: vec![Statement::VariableDeclaration(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("a".into()),
                     value: Expression::Call(Box::new(CallExpression {
                         callee: Identifier("load".into()),
-                        type_parameters: Some(vec![Type::Int, Type::Bool]),
+                        type_parameters: Some(vec![Type::Int32, Type::Bool]),
                         parameters: vec![
                             Expression::IntLiteral(2),
                             Expression::IntLiteral(3),
@@ -1207,9 +1231,9 @@ fn parse_asm_block(tokens: &mut Vec<Token>) -> Result<AsmBlock, String> {
 #[test]
 fn assert_parse_asm_block_empty() {
     let input = r#"
-        int a = 5;
+        i32 a = 5;
         asm (target = default) {}
-        int f() {}
+        i32 f() {}
     "#;
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
@@ -1218,7 +1242,7 @@ fn assert_parse_asm_block_empty() {
         Program {
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("a".into()),
                     value: Expression::IntLiteral(5)
                 }),
@@ -1231,7 +1255,7 @@ fn assert_parse_asm_block_empty() {
                     instr_field: "".into()
                 }),
                 Declaration::Function(FunctionDeclaration {
-                    return_type: Type::Int,
+                    return_type: Type::Int32,
                     identifier: Identifier("f".into()),
                     parameters: vec![],
                     body: vec![]
@@ -1316,12 +1340,12 @@ fn assert_parse_var_decl_bool_literal() {
         Program {
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("T".into()),
                     value: Expression::BoolLiteral(true)
                 }),
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("F".into()),
                     value: Expression::BoolLiteral(false)
                 })
@@ -1333,10 +1357,10 @@ fn assert_parse_var_decl_bool_literal() {
 #[test]
 fn assert_parse_var_decl_binary_expr() {
     let input = r#"
-        int a = 5 + 9;
-        int b = 8 - 6;
-        int c = 6 * 2;
-        int d = 1 / 10;
+        i32 a = 5 + 9;
+        i32 b = 8 - 6;
+        i32 c = 6 * 2;
+        i32 d = 1 / 10;
     "#;
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
@@ -1345,7 +1369,7 @@ fn assert_parse_var_decl_binary_expr() {
         Program {
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("a".into()),
                     value: Expression::Binary(
                         Box::new(Expression::IntLiteral(5)),
@@ -1354,7 +1378,7 @@ fn assert_parse_var_decl_binary_expr() {
                     )
                 }),
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("b".into()),
                     value: Expression::Binary(
                         Box::new(Expression::IntLiteral(8)),
@@ -1363,7 +1387,7 @@ fn assert_parse_var_decl_binary_expr() {
                     )
                 }),
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("c".into()),
                     value: Expression::Binary(
                         Box::new(Expression::IntLiteral(6)),
@@ -1372,7 +1396,7 @@ fn assert_parse_var_decl_binary_expr() {
                     )
                 }),
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("d".into()),
                     value: Expression::Binary(
                         Box::new(Expression::IntLiteral(1)),
@@ -1397,13 +1421,12 @@ fn assert_parse_var_decl_compare_expr() {
     "#;
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
-    dbg!(program.clone());
     assert_eq!(
         program,
         Program {
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("T".into()),
                     value: Expression::Comparison(
                         Box::new(Expression::IntLiteral(7)),
@@ -1412,7 +1435,7 @@ fn assert_parse_var_decl_compare_expr() {
                     )
                 }),
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("T".into()),
                     value: Expression::Comparison(
                         Box::new(Expression::IntLiteral(7)),
@@ -1421,7 +1444,7 @@ fn assert_parse_var_decl_compare_expr() {
                     )
                 }),
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("T".into()),
                     value: Expression::Comparison(
                         Box::new(Expression::IntLiteral(7)),
@@ -1430,7 +1453,7 @@ fn assert_parse_var_decl_compare_expr() {
                     )
                 }),
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("T".into()),
                     value: Expression::Comparison(
                         Box::new(Expression::IntLiteral(7)),
@@ -1439,7 +1462,7 @@ fn assert_parse_var_decl_compare_expr() {
                     )
                 }),
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("T".into()),
                     value: Expression::Comparison(
                         Box::new(Expression::IntLiteral(7)),
@@ -1448,7 +1471,7 @@ fn assert_parse_var_decl_compare_expr() {
                     )
                 }),
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("T".into()),
                     value: Expression::Comparison(
                         Box::new(Expression::IntLiteral(7)),
@@ -1521,7 +1544,7 @@ fn parse_if_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
 #[test]
 fn assert_parse_if_stmt_empty() {
     let input = r#"
-        int f() {
+        i32 f() {
             if (7 > 2) {}
         }
     "#;
@@ -1531,7 +1554,7 @@ fn assert_parse_if_stmt_empty() {
         program,
         Program {
             declarations: vec![Declaration::Function(FunctionDeclaration {
-                return_type: Type::Int,
+                return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
                 body: vec![Statement::IfStatement(IfStatement {
@@ -1551,7 +1574,7 @@ fn assert_parse_if_stmt_empty() {
 #[test]
 fn assert_parse_if_else_stmt_empty() {
     let input = r#"
-        int f() {
+        i32 f() {
             if (7 > 2) {} else {}
         }
     "#;
@@ -1561,7 +1584,7 @@ fn assert_parse_if_else_stmt_empty() {
         program,
         Program {
             declarations: vec![Declaration::Function(FunctionDeclaration {
-                return_type: Type::Int,
+                return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
                 body: vec![Statement::IfStatement(IfStatement {
@@ -1581,9 +1604,9 @@ fn assert_parse_if_else_stmt_empty() {
 #[test]
 fn assert_parse_if_else_stmt_decls() {
     let input = r#"
-        int f() {
+        i32 f() {
             if (7 > 2) {
-                int k = 2;
+                i32 k = 2;
                 return 8;
             } else {
                 return 6 - 2;
@@ -1596,7 +1619,7 @@ fn assert_parse_if_else_stmt_decls() {
         program,
         Program {
             declarations: vec![Declaration::Function(FunctionDeclaration {
-                return_type: Type::Int,
+                return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
                 body: vec![Statement::IfStatement(IfStatement {
@@ -1607,7 +1630,7 @@ fn assert_parse_if_else_stmt_decls() {
                     )),
                     body: vec![
                         Statement::VariableDeclaration(VariableDeclaration {
-                            data_type: Type::Int,
+                            data_type: Type::Int32,
                             identifier: Identifier("k".into()),
                             value: Expression::IntLiteral(2)
                         }),
@@ -1627,7 +1650,7 @@ fn assert_parse_if_else_stmt_decls() {
 #[test]
 fn assert_parse_if_else_stmt_branching() {
     let input = r#"
-        int f() {
+        i32 f() {
             if (7 > 2) {
                 if (5 < 9) {} else {}
             }
@@ -1639,7 +1662,7 @@ fn assert_parse_if_else_stmt_branching() {
         program,
         Program {
             declarations: vec![Declaration::Function(FunctionDeclaration {
-                return_type: Type::Int,
+                return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
                 body: vec![Statement::IfStatement(IfStatement {
@@ -1667,7 +1690,7 @@ fn assert_parse_if_else_stmt_branching() {
 #[test]
 fn assert_parse_if_else_stmt_multi_branching() {
     let input = r#"
-        int f() {
+        i32 f() {
             if (7 > 2) {
                 if (5 < 9) {
                     return 1;
@@ -1689,7 +1712,7 @@ fn assert_parse_if_else_stmt_multi_branching() {
         program,
         Program {
             declarations: vec![Declaration::Function(FunctionDeclaration {
-                return_type: Type::Int,
+                return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
                 body: vec![Statement::IfStatement(IfStatement {
@@ -1765,7 +1788,7 @@ fn assert_parse_while_stmt_empty() {
     // We only need to check this once bc it's also statement like if..else
     // but with no alternative, so branching only.
     let input = r#"
-        int f() {
+        i32 f() {
             while (7 > 2) {}
         }
     "#;
@@ -1775,7 +1798,7 @@ fn assert_parse_while_stmt_empty() {
         program,
         Program {
             declarations: vec![Declaration::Function(FunctionDeclaration {
-                return_type: Type::Int,
+                return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
                 body: vec![Statement::WhileStatement(WhileStatement {
@@ -1840,8 +1863,8 @@ fn parse_for_loop(tokens: &mut Vec<Token>) -> Result<Statement, String> {
 #[test]
 fn assert_parse_for_stmt_empty() {
     let input = r#"
-        int f() {
-            for (int i = 0; i < 10; i += 1) {}
+        i32 f() {
+            for (i32 i = 0; i < 10; i += 1) {}
         }
     "#;
     let mut tokens = collect_tokens(input);
@@ -1850,12 +1873,12 @@ fn assert_parse_for_stmt_empty() {
         program,
         Program {
             declarations: vec![Declaration::Function(FunctionDeclaration {
-                return_type: Type::Int,
+                return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
                 body: vec![Statement::ForLoop(ForLoop {
                     init: VariableDeclaration {
-                        data_type: Type::Int,
+                        data_type: Type::Int32,
                         identifier: Identifier("i".into()),
                         value: Expression::IntLiteral(0)
                     },
@@ -2057,7 +2080,7 @@ fn parse_function_declaration(tokens: &mut Vec<Token>) -> Result<FunctionDeclara
 #[test]
 fn assert_parse_fn_decl_empty() {
     let input = r#"
-        int f() {}
+        i32 f() {}
     "#;
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
@@ -2065,7 +2088,7 @@ fn assert_parse_fn_decl_empty() {
         program,
         Program {
             declarations: vec![Declaration::Function(FunctionDeclaration {
-                return_type: Type::Int,
+                return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
                 body: vec![]
@@ -2077,8 +2100,8 @@ fn assert_parse_fn_decl_empty() {
 #[test]
 fn assert_parse_fn_decl() {
     let input = r#"
-        int f(int a, bool b, int c, bool d) {
-            int k = 7 + 10;
+        i32 f(i32 a, bool b, i32 c, bool d) {
+            i32 k = 7 + 10;
         }
     "#;
     let mut tokens = collect_tokens(input);
@@ -2087,16 +2110,16 @@ fn assert_parse_fn_decl() {
         program,
         Program {
             declarations: vec![Declaration::Function(FunctionDeclaration {
-                return_type: Type::Int,
+                return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![
-                    (Type::Int, Identifier("a".into())),
+                    (Type::Int32, Identifier("a".into())),
                     (Type::Bool, Identifier("b".into())),
-                    (Type::Int, Identifier("c".into())),
+                    (Type::Int32, Identifier("c".into())),
                     (Type::Bool, Identifier("d".into())),
                 ],
                 body: vec![Statement::VariableDeclaration(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("k".into()),
                     value: Expression::Binary(
                         Box::new(Expression::IntLiteral(7)),
@@ -2112,7 +2135,7 @@ fn assert_parse_fn_decl() {
 #[test]
 fn assert_parse_fn_decl_returns() {
     let input = r#"
-        bool gt(int a, int b) {
+        bool gt(i32 a, i32 b) {
             return 8 > 2;
         }
     "#;
@@ -2125,8 +2148,8 @@ fn assert_parse_fn_decl_returns() {
                 return_type: Type::Bool,
                 identifier: Identifier("gt".into()),
                 parameters: vec![
-                    (Type::Int, Identifier("a".into())),
-                    (Type::Int, Identifier("b".into())),
+                    (Type::Int32, Identifier("a".into())),
+                    (Type::Int32, Identifier("b".into())),
                 ],
                 body: vec![Statement::Return(Expression::Comparison(
                     Box::new(Expression::IntLiteral(8)),
@@ -2141,11 +2164,11 @@ fn assert_parse_fn_decl_returns() {
 #[test]
 fn assert_parse_fn_decl_order() {
     let input = r#"
-        int i = 0;
-        int i(int j) {
-            int i;
+        i32 i = 0;
+        i32 i(i32 j) {
+            i32 i;
         }
-        int j = 0;
+        i32 j = 0;
     "#;
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
@@ -2154,22 +2177,22 @@ fn assert_parse_fn_decl_order() {
         Program {
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("i".into()),
                     value: Expression::IntLiteral(0)
                 }),
                 Declaration::Function(FunctionDeclaration {
-                    return_type: Type::Int,
+                    return_type: Type::Int32,
                     identifier: Identifier("i".into()),
-                    parameters: vec![(Type::Int, Identifier("j".into())),],
+                    parameters: vec![(Type::Int32, Identifier("j".into())),],
                     body: vec![Statement::VariableDeclaration(VariableDeclaration {
-                        data_type: Type::Int,
+                        data_type: Type::Int32,
                         identifier: Identifier("i".into()),
                         value: Expression::Uninit
                     })]
                 }),
                 Declaration::Variable(VariableDeclaration {
-                    data_type: Type::Int,
+                    data_type: Type::Int32,
                     identifier: Identifier("j".into()),
                     value: Expression::IntLiteral(0)
                 }),
@@ -2331,6 +2354,7 @@ impl Printer {
         ));
     }
 
+    // This just DEFINES (!), no assignment until Expression::Uninit is checked.
     fn def_local_var(&mut self, name: &str, var_type: &str) {
         self.lines
             .push(format!("    (local ${} {})", name, var_type));
@@ -2370,13 +2394,13 @@ struct FirstPass;
 impl ProgramVisitor for FirstPass {}
 
 struct SecondPass {
-    printer: Printer
+    printer: Printer,
 }
 
 impl Default for SecondPass {
     fn default() -> Self {
         Self {
-            printer: Printer::new()
+            printer: Printer::new(),
         }
     }
 }
@@ -2384,16 +2408,18 @@ impl Default for SecondPass {
 impl ProgramVisitor for SecondPass {
     fn visit_program(&mut self, program: &mut Program) {
         self.printer.def_mod();
+
         for declaration in &mut program.declarations {
             self.visit_declaration(declaration);
         }
+
         self.printer.end_mod();
     }
 
+    // We need to determine whether this is a global or local var.
     fn visit_variable_declaration(&mut self, var_decl: &mut VariableDeclaration) {
-        if let Expression::IntLiteral(n) = var_decl.value {
-            var_decl.value = Expression::IntLiteral(n + 1);
-        }
+        self.printer
+            .def_local_var(&var_decl.identifier.0, &var_decl.data_type.to_string());
     }
 
     fn visit_function_declaration(&mut self, _func_decl: &mut FunctionDeclaration) {
@@ -2405,16 +2431,12 @@ impl ProgramVisitor for SecondPass {
 
 fn main() {
     let input = r#"
-        int a = 5;
-        int k = 943;
+        i32 a = 5;
 
-        int f() {
-            int z = 7;
-            int p = 9;
+        i32 f() {
+            i32 z = 7;
+            i32 p = 9;
         }
-
-        int e = 55;
-        int g = 43;
     "#;
     let mut tokens = collect_tokens(input);
     let mut program = parse_program(&mut tokens);
