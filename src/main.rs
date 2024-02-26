@@ -41,6 +41,8 @@ enum TokenType {
     Lt,
     GtEq,
     LtEq,
+    Dollar,
+    DoubleQuote,
     EOF,
 }
 
@@ -178,6 +180,24 @@ impl<'a> Lexer<'a> {
                 Token {
                     token_type: TokenType::Semicolon,
                     lexeme: ";".to_string(),
+                }
+            }
+
+            Some('$') => {
+                self.advance();
+
+                Token {
+                    token_type: TokenType::Dollar,
+                    lexeme: "$".to_string(),
+                }
+            }
+
+            Some('"') => {
+                self.advance();
+
+                Token {
+                    token_type: TokenType::DoubleQuote,
+                    lexeme: "\"".to_string(),
                 }
             }
 
