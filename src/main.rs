@@ -2277,6 +2277,12 @@ impl VariableDeclaration {
 impl FunctionDeclaration {
     pub fn accept<V: ProgramVisitor>(&mut self, visitor: &mut V) {
         visitor.visit_function_declaration(self);
+
+        // @fix: we now have to manually iterate via implementors. why?
+
+        // for statement in &mut self.body {
+        //     statement.accept(visitor);
+        // }
     }
 }
 
@@ -2298,13 +2304,97 @@ impl Statement {
     }
 }
 
-struct StubVisitor;
+#[derive(Debug, Clone)]
+struct Printer {
+    lines: Vec<String>,
+}
 
-impl ProgramVisitor for StubVisitor {
+impl Printer {
+    fn new() -> Self {
+        Printer { lines: Vec::new() }
+    }
+
+    fn def_mod(&mut self) {
+        self.lines.push("(module".to_string());
+    }
+
+    fn end_mod(&mut self) {
+        self.lines.push(")".to_string());
+    }
+
+    fn def_global_var(&mut self, name: &str, var_type: &str, value: &str) {
+        self.lines.push(format!(
+            "  (global ${} ({} {}) ({}))",
+            name, var_type, "const", value
+        ));
+    }
+
+    fn def_local_var(&mut self, name: &str, var_type: &str) {
+        self.lines
+            .push(format!("    (local ${} {})", name, var_type));
+    }
+
+    fn def_func(
+        &mut self,
+        name: &str,
+        params: Vec<(&str, &str)>,
+        locals: Vec<(&str, &str)>,
+        instructions: Vec<&str>,
+    ) {
+        let params_str = params
+            .into_iter()
+            .map(|(param_name, param_type)| format!("(param ${} {})", param_name, param_type))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let locals_str = locals
+            .into_iter()
+            .map(|(local_name, local_type)| format!("(local ${} {})", local_name, local_type))
+            .collect::<Vec<_>>()
+            .join("\n    ");
+        let instructions_str = instructions.join("\n    ");
+        self.lines.push(format!(
+            "  (func ${} {}\n    {}\n    {}\n  )",
+            name, params_str, locals_str, instructions_str
+        ));
+    }
+
+    fn to_string(&self) -> String {
+        self.lines.join("\n")
+    }
+}
+
+struct FirstPass;
+
+impl ProgramVisitor for FirstPass {}
+
+struct SecondPass {
+    printer: Printer
+}
+
+impl Default for SecondPass {
+    fn default() -> Self {
+        Self {
+            printer: Printer::new()
+        }
+    }
+}
+
+impl ProgramVisitor for SecondPass {
+    fn visit_program(&mut self, program: &mut Program) {
+        println!("START PROGR");
+        program.accept(self);
+        println!("END   PROGR");
+    }
+
     fn visit_variable_declaration(&mut self, var_decl: &mut VariableDeclaration) {
-        println!("Visiting var: {:?}", var_decl);
         if let Expression::IntLiteral(n) = var_decl.value {
             var_decl.value = Expression::IntLiteral(n + 1);
+        }
+    }
+
+    fn visit_function_declaration(&mut self, _func_decl: &mut FunctionDeclaration) {
+        for statement in &mut _func_decl.body {
+            statement.accept(self);
         }
     }
 }
@@ -2312,15 +2402,21 @@ impl ProgramVisitor for StubVisitor {
 fn main() {
     let input = r#"
         int a = 5;
+        int k = 943;
 
         int f() {
-            int b = 7;
+            int z = 7;
+            int p = 9;
         }
+
+        int e = 55;
+        int g = 43;
     "#;
     let mut tokens = collect_tokens(input);
     let mut program = parse_program(&mut tokens);
-    dbg!(&program);
-    let mut visitor = StubVisitor;
-    program.accept(&mut visitor);
+    let mut first_pass_visitor = FirstPass;
+    program.accept(&mut first_pass_visitor);
+    let mut second_pass_visitor = SecondPass::default();
+    program.accept(&mut second_pass_visitor);
     dbg!(&program);
 }
