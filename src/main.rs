@@ -4,6 +4,7 @@ use std::str::Chars;
 
 #[derive(Debug, Clone, PartialEq)]
 enum TokenType {
+    Asm,
     Import,
     Export,
     Extern,
@@ -362,6 +363,22 @@ impl<'a> Lexer<'a> {
                 }
             }
 
+            Some('a') => {
+                let identifier = self.consume_identifier();
+
+                if identifier == "asm" {
+                    Token {
+                        token_type: TokenType::Asm,
+                        lexeme: identifier,
+                    }
+                } else {
+                    Token {
+                        token_type: TokenType::Identifier(identifier.clone()),
+                        lexeme: identifier,
+                    }
+                }
+            }
+
             Some('r') => {
                 let identifier = self.consume_identifier();
 
@@ -649,6 +666,12 @@ struct CallExpression {
     parameters: Vec<Expression>,
 }
 
+#[derive(Debug, Clone)]
+struct AsmBlock {
+    target: Expression,
+    instr_field: String,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 enum Statement {
     VariableDeclaration(VariableDeclaration),
@@ -664,6 +687,7 @@ enum Statement {
 enum Declaration {
     Variable(VariableDeclaration),
     Function(FunctionDeclaration),
+    AsmBlock(AsmBlock),
 }
 
 #[derive(Debug, Clone)]
@@ -1109,6 +1133,45 @@ fn assert_parse_call_expr_var_decl() {
             }),]
         }
     );
+}
+
+fn parse_asm_block(tokens: &mut Vec<Token>) -> Result<AsmBlock, String> {
+    match tokens.remove(0).token_type {
+        TokenType::Asm => (), // Expect and eat `asm`
+        _ => return Err("Expected 'asm' keyword".to_string()),
+    }
+
+    if tokens.remove(0).token_type != TokenType::LeftParen {
+        return Err("Expected '(' after 'asm' keyword".to_string());
+    }
+
+    let target = parse_assignment_expression(tokens)?;
+
+    if tokens.remove(0).token_type != TokenType::RightParen {
+        return Err("Expected ')' after target specification".to_string());
+    }
+
+    if tokens.remove(0).token_type != TokenType::LeftBrace {
+        return Err("Expected '{' to start the asm block".to_string()); // Eat '{'
+    }
+
+    // Capture everything inside the braces as a raw string.
+    let mut instr_field = String::new();
+    while let Some(token) = tokens.get(0) {
+        match token.token_type {
+            TokenType::RightBrace => {
+                tokens.remove(0); // Eat '}'
+                break;
+            },
+            _ => {
+                // Add the current token's lexeme to instr_field and eat.
+                instr_field.push_str(&token.lexeme);
+                tokens.remove(0);
+            },
+        }
+    }
+
+    Ok(AsmBlock { target, instr_field })
 }
 
 fn parse_expression(tokens: &mut Vec<Token>) -> Expression {
@@ -1711,9 +1774,7 @@ fn parse_for_loop(tokens: &mut Vec<Token>) -> Result<Statement, String> {
 fn assert_parse_for_stmt_empty() {
     let input = r#"
         int f() {
-            for (int i = 0; i < 10; i += 1) {
-                int a = 2;
-            }
+            for (int i = 0; i < 10; i += 1) {}
         }
     "#;
     let mut tokens = collect_tokens(input);
@@ -1811,6 +1872,7 @@ fn parse_statement(tokens: &mut Vec<Token>) -> Result<Statement, String> {
                     }
 
                     // Likely a call expr, routes to parse_call_expression
+                    // @todo: fix the '<' issue
                     TokenType::LeftParen | TokenType::Lt => {
                         let expression = parse_call_expression(tokens)?;
                         if tokens
@@ -2078,7 +2140,15 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
                         tokens.remove(0); // Eat ';'
                     }
                 }
-            }
+            },
+
+            TokenType::Asm => {
+                match parse_asm_block(tokens) {
+                    Ok(asm_block) => declarations.push(Declaration::AsmBlock(asm_block)),
+                    Err(e) => panic!("Failed to parse asm block: {}", e),
+                }
+            },
+
             _ => {
                 tokens.remove(0); // /!\ skip unexpected tokens.
             }
@@ -2090,9 +2160,13 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
 
 fn main() {
     let input = r#"
-        int f() {
-            int a = print<int>(1, 2);
+        int a = 5;
+
+        asm (target = default) {
+            (import "env" "print" (func $print (param i32) ) )
         }
+
+        int f() {}
     "#;
     let mut tokens = collect_tokens(input);
     let program = parse_program(&mut tokens);
