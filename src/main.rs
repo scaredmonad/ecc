@@ -2304,6 +2304,8 @@ impl Statement {
     }
 }
 
+// We use a Vec<String> because we can later iterate and collect into a
+// string interning structure. Or maybe it should be an AsRef<T>?
 #[derive(Debug, Clone)]
 struct Printer {
     lines: Vec<String>,
@@ -2381,9 +2383,11 @@ impl Default for SecondPass {
 
 impl ProgramVisitor for SecondPass {
     fn visit_program(&mut self, program: &mut Program) {
-        println!("START PROGR");
-        program.accept(self);
-        println!("END   PROGR");
+        self.printer.def_mod();
+        for declaration in &mut program.declarations {
+            self.visit_declaration(declaration);
+        }
+        self.printer.end_mod();
     }
 
     fn visit_variable_declaration(&mut self, var_decl: &mut VariableDeclaration) {
@@ -2418,5 +2422,6 @@ fn main() {
     program.accept(&mut first_pass_visitor);
     let mut second_pass_visitor = SecondPass::default();
     program.accept(&mut second_pass_visitor);
-    dbg!(&program);
+    let output = second_pass_visitor.printer.to_string();
+    println!("{}", output);
 }
