@@ -2223,17 +2223,80 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
     Program { declarations }
 }
 
+// The visitor implementation we'll be using will allow multiple mutable references to a `Program`--no clone().
+// - A first pass can enforce some known semantics and maybe collect local imports into a map for linking.
+// - A separate pass for the type checker, after resolving imports.
+// - A second pass will holder the printer for outputting to a `.wat` module.
+// - For now, we'll use an asm block for imports.
+trait ProgramVisitor {
+    fn visit_program(&mut self, program: &mut Program) {
+        for declaration in &mut program.declarations {
+            self.visit_declaration(declaration);
+        }
+    }
+
+    fn visit_declaration(&mut self, declaration: &mut Declaration) {
+        match declaration {
+            Declaration::Variable(var_decl) => self.visit_variable_declaration(var_decl),
+            Declaration::Function(func_decl) => self.visit_function_declaration(func_decl),
+            Declaration::AsmBlock(asm_block) => self.visit_asm_block(asm_block),
+        }
+    }
+
+    fn visit_variable_declaration(&mut self, _var_decl: &mut VariableDeclaration) {}
+
+    fn visit_function_declaration(&mut self, _func_decl: &mut FunctionDeclaration) {}
+
+    fn visit_asm_block(&mut self, _asm_block: &mut AsmBlock) {}
+}
+
+impl Program {
+    pub fn accept<V: ProgramVisitor>(&mut self, visitor: &mut V) {
+        visitor.visit_program(self);
+    }
+}
+
+impl VariableDeclaration {
+    pub fn accept<V: ProgramVisitor>(&mut self, visitor: &mut V) {
+        visitor.visit_variable_declaration(self);
+    }
+}
+
+impl FunctionDeclaration {
+    pub fn accept<V: ProgramVisitor>(&mut self, visitor: &mut V) {
+        visitor.visit_function_declaration(self);
+    }
+}
+
+impl AsmBlock {
+    pub fn accept<V: ProgramVisitor>(&mut self, visitor: &mut V) {
+        visitor.visit_asm_block(self);
+    }
+}
+
+struct StubVisitor;
+
+impl ProgramVisitor for StubVisitor {
+    fn visit_variable_declaration(&mut self, var_decl: &mut VariableDeclaration) {
+        println!("Visiting var: {:?}", var_decl);
+        if let Expression::IntLiteral(n) = var_decl.value {
+            var_decl.value = Expression::IntLiteral(n + 1);
+        }
+    }
+}
+
 fn main() {
     let input = r#"
         int a = 5;
 
-        asm (target = default) {
-            (import "env" "print" (func $print (param i32) ) )
+        int f() {
+            int b = 7;
         }
-
-        int f() {}
     "#;
     let mut tokens = collect_tokens(input);
-    let program = parse_program(&mut tokens);
-    dbg!(program);
+    let mut program = parse_program(&mut tokens);
+    dbg!(&program);
+    let mut visitor = StubVisitor;
+    program.accept(&mut visitor);
+    dbg!(&program);
 }
