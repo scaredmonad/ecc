@@ -2226,7 +2226,7 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
 // The visitor implementation we'll be using will allow multiple mutable references to a `Program`--no clone().
 // - A first pass can enforce some known semantics and maybe collect local imports into a map for linking.
 // - A separate pass for the type checker, after resolving imports.
-// - A second pass will holder the printer for outputting to a `.wat` module.
+// - A second pass will hold the printer for outputting to a `.wat` module.
 // - For now, we'll use an asm block for imports.
 trait ProgramVisitor {
     fn visit_program(&mut self, program: &mut Program) {
@@ -2248,6 +2248,18 @@ trait ProgramVisitor {
     fn visit_function_declaration(&mut self, _func_decl: &mut FunctionDeclaration) {}
 
     fn visit_asm_block(&mut self, _asm_block: &mut AsmBlock) {}
+
+    fn visit_expression(&mut self, expression: &mut Expression) {}
+
+    // Should this be overriden bc it wont' prepend/append to the printer?
+    fn visit_statement(&mut self, statement: &mut Statement) {
+        match statement {
+            Statement::ExpressionStatement(expr) => self.visit_expression(expr),
+            Statement::VariableDeclaration(var_decl) => self.visit_variable_declaration(var_decl),
+            Statement::Return(expr) => self.visit_expression(expr),
+            _ => {}
+        }
+    }
 }
 
 impl Program {
@@ -2271,6 +2283,18 @@ impl FunctionDeclaration {
 impl AsmBlock {
     pub fn accept<V: ProgramVisitor>(&mut self, visitor: &mut V) {
         visitor.visit_asm_block(self);
+    }
+}
+
+impl Expression {
+    pub fn accept<V: ProgramVisitor>(&mut self, visitor: &mut V) {
+        visitor.visit_expression(self);
+    }
+}
+
+impl Statement {
+    pub fn accept<V: ProgramVisitor>(&mut self, visitor: &mut V) {
+        visitor.visit_statement(self);
     }
 }
 
