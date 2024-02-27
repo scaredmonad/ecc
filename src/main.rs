@@ -2360,28 +2360,20 @@ impl Printer {
             .push(format!("    (local ${} {})", name, var_type));
     }
 
-    fn def_func(
-        &mut self,
-        name: &str,
-        params: Vec<(&str, &str)>,
-        locals: Vec<(&str, &str)>,
-        instructions: Vec<&str>,
-    ) {
+    fn def_func(&mut self, name: &str, params: Vec<(String, String)>, return_type: Option<String>) {
         let params_str = params
             .into_iter()
-            .map(|(param_name, param_type)| format!("(param ${} {})", param_name, param_type))
+            .map(|(type_, id)| format!("(param ${} {})", id, type_))
             .collect::<Vec<_>>()
             .join(" ");
-        let locals_str = locals
-            .into_iter()
-            .map(|(local_name, local_type)| format!("(local ${} {})", local_name, local_type))
-            .collect::<Vec<_>>()
-            .join("\n    ");
-        let instructions_str = instructions.join("\n    ");
-        self.lines.push(format!(
-            "  (func ${} {}\n    {}\n    {}\n  )",
-            name, params_str, locals_str, instructions_str
-        ));
+        let return_str =
+            return_type.map_or(String::new(), |r_type| format!(" (result {})", r_type));
+        self.lines
+            .push(format!("  (func ${}{}{})", name, params_str, return_str));
+    }
+
+    fn end_func(&mut self) {
+        self.lines.push("  )".to_string());
     }
 
     fn to_string(&self) -> String {
@@ -2423,9 +2415,21 @@ impl ProgramVisitor for SecondPass {
     }
 
     fn visit_function_declaration(&mut self, _func_decl: &mut FunctionDeclaration) {
+        self.printer.def_func(
+            &_func_decl.identifier.0,
+            _func_decl
+                .parameters
+                .iter()
+                .map(|(t, id)| (t.to_string(), id.0.clone()))
+                .collect::<Vec<(String, String)>>(),
+            None,
+        );
+
         for statement in &mut _func_decl.body {
             statement.accept(self);
         }
+
+        self.printer.end_func();
     }
 }
 
