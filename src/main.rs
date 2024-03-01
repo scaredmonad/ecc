@@ -2331,12 +2331,13 @@ impl Statement {
 // string interning structure. Or maybe it should be an AsRef<T>?
 #[derive(Debug, Clone)]
 struct Printer {
+    indent_level: u8,
     lines: Vec<String>,
 }
 
 impl Printer {
     fn new() -> Self {
-        Printer { lines: Vec::new() }
+        Printer { lines: Vec::new(), indent_level: 0 }
     }
 
     fn def_mod(&mut self) {
@@ -2357,7 +2358,7 @@ impl Printer {
     // This just DEFINES (!), no assignment until Expression::Uninit is checked.
     fn def_local_var(&mut self, name: &str, var_type: &str) {
         self.lines
-            .push(format!("    (local ${} {})", name, var_type));
+            .push(format!("{}(local ${} {})", "  ".repeat(self.indent_level.into()), name, var_type));
     }
 
     fn def_func(&mut self, name: &str, params: Vec<(String, String)>, return_type: Option<String>) {
@@ -2369,11 +2370,11 @@ impl Printer {
         let return_str =
             return_type.map_or(String::new(), |r_type| format!(" (result {})", r_type));
         self.lines
-            .push(format!("  (func ${}{}{})", name, params_str, return_str));
+            .push(format!("{}(func ${}{}{})", "  ".repeat(self.indent_level.into()), name, params_str, return_str));
     }
 
     fn end_func(&mut self) {
-        self.lines.push("  )".to_string());
+        self.lines.push(format!("{})", "  ".repeat(self.indent_level.into())));
     }
 
     fn to_string(&self) -> String {
@@ -2400,6 +2401,8 @@ impl Default for SecondPass {
 impl ProgramVisitor for SecondPass {
     fn visit_program(&mut self, program: &mut Program) {
         self.printer.def_mod();
+        
+        // self.printer.indent_level += 1; /* temp */
 
         for declaration in &mut program.declarations {
             self.visit_declaration(declaration);
@@ -2415,6 +2418,7 @@ impl ProgramVisitor for SecondPass {
     }
 
     fn visit_function_declaration(&mut self, _func_decl: &mut FunctionDeclaration) {
+        self.printer.indent_level += 1;
         self.printer.def_func(
             &_func_decl.identifier.0,
             _func_decl
@@ -2425,9 +2429,13 @@ impl ProgramVisitor for SecondPass {
             None,
         );
 
+        self.printer.indent_level += 1;
+
         for statement in &mut _func_decl.body {
             statement.accept(self);
         }
+
+        self.printer.indent_level -= 1;
 
         self.printer.end_func();
     }
