@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
+static STD_LINEAR_PRELUDE: &str = include_str!("prelude.wat");
+
 #[derive(Debug, Clone, PartialEq)]
 enum TokenType {
     Asm,
@@ -2337,7 +2339,10 @@ struct Printer {
 
 impl Printer {
     fn new() -> Self {
-        Printer { lines: Vec::new(), indent_level: 0 }
+        Printer {
+            lines: Vec::new(),
+            indent_level: 0,
+        }
     }
 
     fn def_mod(&mut self) {
@@ -2357,8 +2362,21 @@ impl Printer {
 
     // This just DEFINES (!), no assignment until Expression::Uninit is checked.
     fn def_local_var(&mut self, name: &str, var_type: &str) {
-        self.lines
-            .push(format!("{}(local ${} {})", "  ".repeat(self.indent_level.into()), name, var_type));
+        self.lines.push(format!(
+            "{}(local ${} {})",
+            "  ".repeat(self.indent_level.into()),
+            name,
+            var_type
+        ));
+    }
+
+    fn assign(&mut self, var_name: &str, value: &str) {
+        self.lines.push(format!(
+            "{}(set_local ${} {})",
+            "  ".repeat(self.indent_level.into()),
+            var_name,
+            value
+        ));
     }
 
     fn def_func(&mut self, name: &str, params: Vec<(String, String)>, return_type: Option<String>) {
@@ -2369,12 +2387,22 @@ impl Printer {
             .join(" ");
         let return_str =
             return_type.map_or(String::new(), |r_type| format!(" (result {})", r_type));
-        self.lines
-            .push(format!("{}(func ${}{}{})", "  ".repeat(self.indent_level.into()), name, params_str, return_str));
+        self.lines.push(format!(
+            "{}(func ${}{}{})",
+            "  ".repeat(self.indent_level.into()),
+            name,
+            params_str,
+            return_str
+        ));
     }
 
     fn end_func(&mut self) {
-        self.lines.push(format!("{})", "  ".repeat(self.indent_level.into())));
+        self.lines
+            .push(format!("{})", "  ".repeat(self.indent_level.into())));
+    }
+
+    fn raw_append(&mut self, value: &str) {
+        self.lines.push(value.into())
     }
 
     fn to_string(&self) -> String {
@@ -2401,8 +2429,9 @@ impl Default for SecondPass {
 impl ProgramVisitor for SecondPass {
     fn visit_program(&mut self, program: &mut Program) {
         self.printer.def_mod();
-        
+
         // self.printer.indent_level += 1; /* temp */
+        self.printer.raw_append(STD_LINEAR_PRELUDE);
 
         for declaration in &mut program.declarations {
             self.visit_declaration(declaration);
@@ -2415,6 +2444,13 @@ impl ProgramVisitor for SecondPass {
     fn visit_variable_declaration(&mut self, var_decl: &mut VariableDeclaration) {
         self.printer
             .def_local_var(&var_decl.identifier.0, &var_decl.data_type.to_string());
+
+        match var_decl.value {
+            Expression::IntLiteral(n) => {
+                self.printer.assign(&var_decl.identifier.0, &n.to_string())
+            }
+            _ => {}
+        }
     }
 
     fn visit_function_declaration(&mut self, _func_decl: &mut FunctionDeclaration) {
@@ -2443,8 +2479,6 @@ impl ProgramVisitor for SecondPass {
 
 fn main() {
     let input = r#"
-        i32 a = 5;
-
         i32 f() {
             i32 z = 7;
             i32 p = 9;
