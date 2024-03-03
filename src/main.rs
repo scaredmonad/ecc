@@ -1219,6 +1219,7 @@ fn parse_asm_block(tokens: &mut Vec<Token>) -> Result<AsmBlock, String> {
             _ => {
                 // Add the current token's lexeme to instr_field and eat.
                 instr_field.push_str(&token.lexeme);
+                instr_field.push_str(" "); // @fix: make this legal
                 tokens.remove(0);
             }
         }
@@ -2440,6 +2441,10 @@ impl ProgramVisitor for SecondPass {
         self.printer.end_mod();
     }
 
+    fn visit_asm_block(&mut self, asm_block: &mut AsmBlock) {
+        self.printer.raw_append(&asm_block.instr_field);
+    }
+
     // We need to determine whether this is a global or local var.
     fn visit_variable_declaration(&mut self, var_decl: &mut VariableDeclaration) {
         self.printer
@@ -2479,9 +2484,17 @@ impl ProgramVisitor for SecondPass {
 
 fn main() {
     let input = r#"
+        asm (target = default) {
+            (local.get $ident i32)
+        }
+
         i32 f() {
             i32 z = 7;
             i32 p = 9;
+        }
+
+        asm (target = default) {
+            (local.get $ident2 i32)
         }
     "#;
     let mut tokens = collect_tokens(input);
