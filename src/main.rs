@@ -2442,6 +2442,17 @@ impl ProgramVisitor for SecondPass {
     }
 
     fn visit_asm_block(&mut self, asm_block: &mut AsmBlock) {
+        if let Expression::Assignment(ass) = &asm_block.target {
+            if let Expression::Variable(ref ass_rhs) = *ass.right {
+                let ass_rhs_ident = &ass_rhs.0;
+                if ass_rhs_ident.as_str() != "default" {
+                    core::panic!("Default printer expects `default` on all asm blocks.");
+                }
+            } else {
+                core::panic!("Exprected an ident RHS expression on asm block.");
+            }
+        }
+
         self.printer.raw_append(&asm_block.instr_field);
     }
 
