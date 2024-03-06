@@ -29,3 +29,33 @@
     (i32.load (local.get $offset))
   )
   (export "load_i32" (func $load_i32))
+
+  ;; store<i64>(i64 offset, i64 value);
+  (func $store_i64 (param $offset i32) (param $value i64)
+    (i64.store (local.get $offset) (local.get $value)))
+  (export "store_i64" (func $store_i64))
+
+  ;; load<i64>(i64 offset);
+  (func $load_i64 (param $offset i32) (result i64)
+    (i64.load (local.get $offset)))
+  (export "load_i64" (func $load_i64))
+
+  ;; store<f32>(f32 offset, f32 value);
+  (func $store_f32 (param $offset i32) (param $value f32)
+    (f32.store (local.get $offset) (local.get $value)))
+  (export "store_f32" (func $store_f32))
+
+  ;; load<f32>(f32 offset);
+  (func $load_f32 (param $offset i32) (result f32)
+    (f32.load (local.get $offset)))
+  (export "load_f32" (func $load_f32))
+
+  ;; store<f64>(f64 offset, f64 value);
+  (func $store_f64 (param $offset i32) (param $value f64)
+    (f64.store (local.get $offset) (local.get $value)))
+  (export "store_f64" (func $store_f64))
+
+  ;; load<f64>(f64 offset);
+  (func $load_f64 (param $offset i32) (result f64)
+    (f64.load (local.get $offset)))
+  (export "load_f64" (func $load_f64))
