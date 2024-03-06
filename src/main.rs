@@ -2371,6 +2371,61 @@ impl Printer {
         ));
     }
 
+    fn rec_write_expr(expr: &Expression) -> String {
+        match expr {
+            Expression::Uninit => String::new(),
+            Expression::IntLiteral(value) => format!("(i32.const {})", value),
+            Expression::BoolLiteral(value) => {
+                let bool_val = if *value { "1" } else { "0" };
+                format!("(i32.const {})", bool_val)
+            },
+            Expression::Variable(Identifier(name)) => format!("(get_local ${})", name),
+            Expression::Binary(left, op, right) => {
+                let left_str = Self::rec_write_expr(left);
+                let right_str = Self::rec_write_expr(right);
+                let op_str = match op {
+                    BinaryOp::Add => "i32.add",
+                    _ => "unimplemented!"
+                };
+                format!("({} {} {})", op_str, left_str, right_str)
+            },
+            Expression::Comparison(left, op, right) => {
+                // Similar to Binary, but for comparisons
+                let left_str = Self::rec_write_expr(left);
+                let right_str = Self::rec_write_expr(right);
+                let op_str = match op {
+                    CompareOp::StrictEqual => "i32.eq",
+                    _ => "unimplemented!"
+                };
+                format!("({} {} {})", op_str, left_str, right_str)
+            },
+            // Expression::Assignment(assignment_expr) => {},
+
+            // This entire block doesn't work as expected bc:
+            // - type params shouldn't be used at runtime
+            // - malloc<T>(), sizeof<T>(), load<T>() and store<T> should work
+            // in line with how we configure it in the prelude.
+            // - so this is just a stub
+            Expression::Call(call_expr) => {
+                let callee = &call_expr.callee.0;
+                let params_str = call_expr.parameters.iter()
+                    .map(Self::rec_write_expr)
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let type_params_str = if let Some(type_params) = &call_expr.type_parameters {
+                    type_params.iter()
+                        .map(|t| t.to_string())
+                        .collect::<Vec<_>>()
+                    .join(" ")
+                } else {
+                    String::new()
+                };
+                format!("(call ${} {} {})", callee, type_params_str, params_str)
+            },
+            _ => "".into()
+        }
+    }
+
     fn repr_get_ident(&mut self, var_name: &str) -> String {
         format!("{}(get_local ${})", "  ".repeat(self.indent_level.into()), var_name)
     }
@@ -2469,15 +2524,20 @@ impl ProgramVisitor for SecondPass {
         self.printer
             .def_local_var(&var_decl.identifier.0, &var_decl.data_type.to_string());
 
-        match &var_decl.value {
-            Expression::IntLiteral(n) => {
-                self.printer.assign(&var_decl.identifier.0, &n.to_string())
-            },
-            Expression::Binary(lhs, op, rhs) => {
-                // self.printer.binary_add(left_var, right_var)
-            }
-            _ => {}
-        }
+        let expr_repr = Printer::rec_write_expr(&var_decl.value);
+
+        self.printer.assign(&var_decl.identifier.0, &expr_repr);
+        dbg!(expr_repr);
+
+        // match &var_decl.value {
+        //     Expression::IntLiteral(n) => {
+        //         self.printer.assign(&var_decl.identifier.0, &n.to_string())
+        //     },
+        //     Expression::Binary(lhs, op, rhs) => {
+        //         // self.printer.binary_add(left_var, right_var)
+        //     }
+        //     _ => {}
+        // }
     }
 
     // fn visit_statement(&mut self, statement: &mut Statement) {
