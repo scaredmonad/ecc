@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
+use std::cell::RefCell;
+use std::rc::{Rc, Weak};
 
 static STD_LINEAR_PRELUDE: &str = include_str!("prelude.wat");
 
@@ -739,6 +741,7 @@ enum Declaration {
 #[derive(Debug, Clone)]
 struct Program {
     declarations: Vec<Declaration>,
+    scope: Option<Rc<RefCell<Scope>>>,
 }
 
 impl PartialEq for Type {
@@ -932,7 +935,8 @@ fn assert_parse_var_decl() {
                 data_type: Type::Int32,
                 identifier: Identifier("a".into()),
                 value: Expression::IntLiteral(5)
-            })]
+            })],
+            scope: None
         }
     );
 }
@@ -956,7 +960,8 @@ fn assert_parse_multi_var_decl() {
                     identifier: Identifier("b".into()),
                     value: Expression::IntLiteral(9)
                 })
-            ]
+            ],
+            scope: None
         }
     );
 }
@@ -973,7 +978,8 @@ fn assert_parse_uninit_var_decl() {
                 data_type: Type::Int32,
                 identifier: Identifier("a".into()),
                 value: Expression::Uninit
-            })]
+            })],
+            scope: None
         }
     );
 }
@@ -1018,6 +1024,7 @@ fn assert_parse_compound_assign_expr() {
     assert_eq!(
         program,
         Program {
+            scope: None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
@@ -1134,6 +1141,7 @@ fn assert_parse_call_expr_stmt() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
@@ -1162,6 +1170,7 @@ fn assert_parse_call_expr_var_decl() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
@@ -1243,6 +1252,7 @@ fn assert_parse_asm_block_empty() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
                     data_type: Type::Int32,
@@ -1341,6 +1351,7 @@ fn assert_parse_var_decl_bool_literal() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
                     data_type: Type::Int32,
@@ -1370,6 +1381,7 @@ fn assert_parse_var_decl_binary_expr() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
                     data_type: Type::Int32,
@@ -1427,6 +1439,7 @@ fn assert_parse_var_decl_compare_expr() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
                     data_type: Type::Int32,
@@ -1556,6 +1569,7 @@ fn assert_parse_if_stmt_empty() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
@@ -1586,6 +1600,7 @@ fn assert_parse_if_else_stmt_empty() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
@@ -1621,6 +1636,7 @@ fn assert_parse_if_else_stmt_decls() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
@@ -1664,6 +1680,7 @@ fn assert_parse_if_else_stmt_branching() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
@@ -1714,6 +1731,7 @@ fn assert_parse_if_else_stmt_multi_branching() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
@@ -1800,6 +1818,7 @@ fn assert_parse_while_stmt_empty() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
@@ -1875,6 +1894,7 @@ fn assert_parse_for_stmt_empty() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
@@ -2090,6 +2110,7 @@ fn assert_parse_fn_decl_empty() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
@@ -2112,6 +2133,7 @@ fn assert_parse_fn_decl() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
@@ -2147,6 +2169,7 @@ fn assert_parse_fn_decl_returns() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
                 return_type: Type::Bool,
                 identifier: Identifier("gt".into()),
@@ -2178,6 +2201,7 @@ fn assert_parse_fn_decl_order() {
     assert_eq!(
         program,
         Program {
+            scope:None,
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
                     data_type: Type::Int32,
@@ -2246,7 +2270,13 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
         }
     }
 
-    Program { declarations }
+    Program { declarations, scope: None }
+}
+
+#[derive(Debug, Clone)]
+enum ASTNode {
+    Program(Program),
+    FunctionDeclaration(FunctionDeclaration),
 }
 
 // The visitor implementation we'll be using will allow multiple mutable references to a `Program`--no clone().
@@ -2327,6 +2357,53 @@ impl Expression {
 impl Statement {
     pub fn accept<V: ProgramVisitor>(&mut self, visitor: &mut V) {
         visitor.visit_statement(self);
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Scope {
+    parent: Option<Weak<RefCell<Scope>>>,
+    children: Vec<Rc<RefCell<Scope>>>,
+    ast_nodes: Vec<ASTNode>,
+}
+
+impl Scope {
+    fn new() -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self {
+            parent: None,
+            children: Vec::new(),
+            ast_nodes: Vec::new(),
+        }))
+    }
+
+    fn add_child(parent: &Rc<RefCell<Self>>, ast_node: ASTNode) -> Rc<RefCell<Self>> {
+        let child = Rc::new(RefCell::new(Self {
+            parent: Some(Rc::downgrade(parent)),
+            children: Vec::new(),
+            ast_nodes: vec![ast_node],
+        }));
+        parent.borrow_mut().children.push(Rc::clone(&child));
+        child
+    }
+}
+
+struct SemanticPass {
+    current_scope: Option<Rc<RefCell<Scope>>>,
+}
+
+impl Default for SemanticPass {
+    fn default() -> Self {
+        Self {
+            current_scope: None,
+        }
+    }
+}
+
+impl ProgramVisitor for SemanticPass {
+    fn visit_program(&mut self, program: &mut Program) {
+        let program_scope = Scope::new();
+        program.scope = Some(Rc::clone(&program_scope));
+        self.current_scope = Some(program_scope);
     }
 }
 
@@ -2485,10 +2562,6 @@ impl Printer {
     }
 }
 
-struct FirstPass;
-
-impl ProgramVisitor for FirstPass {}
-
 struct SecondPass {
     printer: Printer,
 }
@@ -2542,6 +2615,7 @@ impl ProgramVisitor for SecondPass {
                 self.printer.raw_append(&expr_repr);
                 self.printer.assign(&var_decl.identifier.0, "");
             }
+            
             _ => {
                 self.printer.assign(&var_decl.identifier.0, &expr_repr);
             }
@@ -2552,6 +2626,7 @@ impl ProgramVisitor for SecondPass {
         self.printer.indent_level += 1;
         match statement {
             Statement::VariableDeclaration(var_decl) => self.visit_variable_declaration(var_decl),
+            
             // Do not check for Expression, which doesn't hold AssignmentExpression in the parse phase.
             Statement::ExpressionStatement(expr) => {
                 if let Expression::Assignment(ass) = expr {
@@ -2559,9 +2634,11 @@ impl ProgramVisitor for SecondPass {
                         .assign(&ass.left.0, &Printer::rec_write_expr(&ass.right));
                 }
             }
+            
             Statement::Return(ret) => {
                 self.printer.raw_append(&Printer::rec_write_expr(ret));
             }
+
             _ => {}
         }
         // self.printer.indent_level -= 1;
@@ -2601,8 +2678,9 @@ fn main() {
     "#;
     let mut tokens = collect_tokens(input);
     let mut program = parse_program(&mut tokens);
-    let mut first_pass_visitor = FirstPass;
-    program.accept(&mut first_pass_visitor);
+    let mut semantic_pass_visitor = SemanticPass::default();
+    program.accept(&mut semantic_pass_visitor);
+    dbg!(&program);
     let mut second_pass_visitor = SecondPass::default();
     program.accept(&mut second_pass_visitor);
     let output = second_pass_visitor.printer.to_string();
