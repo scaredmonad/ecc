@@ -2548,14 +2548,17 @@ impl ProgramVisitor for SecondPass {
         }
     }
 
-    // fn visit_statement(&mut self, statement: &mut Statement) {
-    //     match statement {
-    //         Statement::Expression(Expression::Assignment(ass)) => {
-
-    //         },
-    //         _ => {}
-    //     }
-    // }
+    fn visit_statement(&mut self, statement: &mut Statement) {
+        match statement {
+            Statement::VariableDeclaration(var_decl) => self.visit_variable_declaration(var_decl),
+            Statement::Return(ret) => {
+                self.printer.indent_level += 1;
+                self.printer.raw_append(&Printer::rec_write_expr(ret));
+                // self.printer.indent_level -= 1;
+            }
+            _ => {}
+        }
+    }
 
     fn visit_function_declaration(&mut self, func_decl: &mut FunctionDeclaration) {
         self.printer.indent_level += 1;
@@ -2572,15 +2575,20 @@ impl ProgramVisitor for SecondPass {
         for statement in &mut func_decl.body {
             statement.accept(self);
         }
-        self.printer.indent_level -= 1;
+        self.printer.indent_level = 0;
         self.printer.end_func();
     }
 }
 
 fn main() {
     let input = r#"
+        i32 add(i32 a, i32 b) {
+            return a + b;
+        }
+
         i32 f(i32 a, i32 b) {
-            i32 a = b(2, 9);
+            i32 c = a + b;
+            return c;
         }
     "#;
     let mut tokens = collect_tokens(input);
