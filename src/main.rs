@@ -2378,27 +2378,33 @@ impl Printer {
             Expression::BoolLiteral(value) => {
                 let bool_val = if *value { "1" } else { "0" };
                 format!("(i32.const {})", bool_val)
-            },
+            }
             Expression::Variable(Identifier(name)) => format!("(get_local ${})", name),
             Expression::Binary(left, op, right) => {
                 let left_str = Self::rec_write_expr(left);
                 let right_str = Self::rec_write_expr(right);
                 let op_str = match op {
                     BinaryOp::Add => "i32.add",
-                    _ => "unimplemented!"
+                    BinaryOp::Sub => "i32.sub",
+                    BinaryOp::Mul => "i32.mul",
+                    BinaryOp::Div => "i32.div_s", /* signed 32-bit integers division, for unsigned use i32.div_u */
                 };
                 format!("({} {} {})", op_str, left_str, right_str)
-            },
+            }
+            // We only do signed comparisons!
             Expression::Comparison(left, op, right) => {
-                // Similar to Binary, but for comparisons
                 let left_str = Self::rec_write_expr(left);
                 let right_str = Self::rec_write_expr(right);
                 let op_str = match op {
                     CompareOp::StrictEqual => "i32.eq",
-                    _ => "unimplemented!"
+                    CompareOp::StrictUnequal => "i32.ne",
+                    CompareOp::GreaterThan => "i32.gt_s",
+                    CompareOp::LessThan => "i32.lt_s",
+                    CompareOp::GreaterThanOrEqual => "i32.ge_s",
+                    CompareOp::LessThanOrEqual => "i32.le_s",
                 };
                 format!("({} {} {})", op_str, left_str, right_str)
-            },
+            }
             // Expression::Assignment(assignment_expr) => {},
 
             // This entire block doesn't work as expected bc:
@@ -2408,30 +2414,42 @@ impl Printer {
             // - so this is just a stub
             Expression::Call(call_expr) => {
                 let callee = &call_expr.callee.0;
-                let params_str = call_expr.parameters.iter()
+                let params_str = call_expr
+                    .parameters
+                    .iter()
                     .map(Self::rec_write_expr)
                     .collect::<Vec<_>>()
                     .join(" ");
                 let type_params_str = if let Some(type_params) = &call_expr.type_parameters {
-                    type_params.iter()
+                    type_params
+                        .iter()
                         .map(|t| t.to_string())
                         .collect::<Vec<_>>()
-                    .join(" ")
+                        .join(" ")
                 } else {
                     String::new()
                 };
                 format!("(call ${} {} {})", callee, type_params_str, params_str)
-            },
-            _ => "".into()
+            }
+            _ => "".into(),
         }
     }
 
     fn repr_get_ident(&mut self, var_name: &str) -> String {
-        format!("{}(get_local ${})", "  ".repeat(self.indent_level.into()), var_name)
+        format!(
+            "{}(get_local ${})",
+            "  ".repeat(self.indent_level.into()),
+            var_name
+        )
     }
 
     fn binary_add(&mut self, left_var: &str, right_var: &str) {
-        self.lines.push(format!("{}(i32.add (get_local ${}) (get_local ${}))", "  ".repeat(self.indent_level.into()), left_var, right_var));
+        self.lines.push(format!(
+            "{}(i32.add (get_local ${}) (get_local ${}))",
+            "  ".repeat(self.indent_level.into()),
+            left_var,
+            right_var
+        ));
     }
 
     fn assign(&mut self, var_name: &str, value: &str) {
@@ -2527,7 +2545,6 @@ impl ProgramVisitor for SecondPass {
         let expr_repr = Printer::rec_write_expr(&var_decl.value);
 
         self.printer.assign(&var_decl.identifier.0, &expr_repr);
-        dbg!(expr_repr);
 
         // match &var_decl.value {
         //     Expression::IntLiteral(n) => {
@@ -2543,7 +2560,7 @@ impl ProgramVisitor for SecondPass {
     // fn visit_statement(&mut self, statement: &mut Statement) {
     //     match statement {
     //         Statement::Expression(Expression::Assignment(ass)) => {
-                
+
     //         },
     //         _ => {}
     //     }
@@ -2576,8 +2593,9 @@ impl ProgramVisitor for SecondPass {
 fn main() {
     let input = r#"
         i32 f(i32 a, i32 b) {
-            i32 z = 7;
-            i32 p = 9;
+            i32 d = a * 2;
+            i32 e = b * 2 - 8 * 5 / 0 + 8 - a - b - 1;
+            i32 f = d > e > 2 < 1 <= 2 >= 5 == e - 2;
 
             k = 9;
         }
