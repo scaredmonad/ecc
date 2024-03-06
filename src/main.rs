@@ -2381,8 +2381,8 @@ impl Printer {
             }
             Expression::Variable(Identifier(name)) => format!("(get_local ${})", name),
             Expression::Binary(left, op, right) => {
-                let left_str = Self::rec_write_expr(left);
-                let right_str = Self::rec_write_expr(right);
+                let lhs_str = Self::rec_write_expr(left);
+                let rhs_str = Self::rec_write_expr(right);
                 let op_str = match op {
                     BinaryOp::Add => "i32.add",
                     BinaryOp::Sub => "i32.sub",
@@ -2390,12 +2390,12 @@ impl Printer {
                     BinaryOp::Div => "i32.div_s", /* signed 32-bit integers division, for unsigned use i32.div_u */
                 };
 
-                format!("({} {} {})", op_str, left_str, right_str)
+                format!("({} {} {})", op_str, lhs_str, rhs_str)
             }
             // We only do signed comparisons!
             Expression::Comparison(left, op, right) => {
-                let left_str = Self::rec_write_expr(left);
-                let right_str = Self::rec_write_expr(right);
+                let lhs_str = Self::rec_write_expr(left);
+                let rhs_str = Self::rec_write_expr(right);
                 let op_str = match op {
                     CompareOp::StrictEqual => "i32.eq",
                     CompareOp::StrictUnequal => "i32.ne",
@@ -2405,7 +2405,7 @@ impl Printer {
                     CompareOp::LessThanOrEqual => "i32.le_s",
                 };
 
-                format!("({} {} {})", op_str, left_str, right_str)
+                format!("({} {} {})", op_str, lhs_str, rhs_str)
             }
             // Expression::Assignment(assignment_expr) => {},
 
@@ -2549,15 +2549,22 @@ impl ProgramVisitor for SecondPass {
     }
 
     fn visit_statement(&mut self, statement: &mut Statement) {
+        self.printer.indent_level += 1;
         match statement {
             Statement::VariableDeclaration(var_decl) => self.visit_variable_declaration(var_decl),
+            // Do not check for Expression, which doesn't hold AssignmentExpression in the parse phase.
+            Statement::ExpressionStatement(expr) => {
+                if let Expression::Assignment(ass) = expr {
+                    self.printer
+                        .assign(&ass.left.0, &Printer::rec_write_expr(&ass.right));
+                }
+            }
             Statement::Return(ret) => {
-                self.printer.indent_level += 1;
                 self.printer.raw_append(&Printer::rec_write_expr(ret));
-                // self.printer.indent_level -= 1;
             }
             _ => {}
         }
+        // self.printer.indent_level -= 1;
     }
 
     fn visit_function_declaration(&mut self, func_decl: &mut FunctionDeclaration) {
@@ -2583,6 +2590,7 @@ impl ProgramVisitor for SecondPass {
 fn main() {
     let input = r#"
         i32 add(i32 a, i32 b) {
+            a = b;
             return a + b;
         }
 
