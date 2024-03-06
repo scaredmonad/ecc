@@ -2371,6 +2371,14 @@ impl Printer {
         ));
     }
 
+    fn repr_get_ident(&mut self, var_name: &str) -> String {
+        format!("{}(get_local ${})", "  ".repeat(self.indent_level.into()), var_name)
+    }
+
+    fn binary_add(&mut self, left_var: &str, right_var: &str) {
+        self.lines.push(format!("{}(i32.add (get_local ${}) (get_local ${}))", "  ".repeat(self.indent_level.into()), left_var, right_var));
+    }
+
     fn assign(&mut self, var_name: &str, value: &str) {
         self.lines.push(format!(
             "{}(set_local ${} {})",
@@ -2389,7 +2397,7 @@ impl Printer {
         let return_str =
             return_type.map_or(String::new(), |r_type| format!(" (result {})", r_type));
         self.lines.push(format!(
-            "{}(func ${}{}{})",
+            "{}(func ${} {}{})",
             "  ".repeat(self.indent_level.into()),
             name,
             params_str,
@@ -2432,7 +2440,7 @@ impl ProgramVisitor for SecondPass {
         self.printer.def_mod();
 
         // self.printer.indent_level += 1; /* temp */
-        self.printer.raw_append(STD_LINEAR_PRELUDE);
+        // self.printer.raw_append(STD_LINEAR_PRELUDE);
 
         for declaration in &mut program.declarations {
             self.visit_declaration(declaration);
@@ -2449,7 +2457,7 @@ impl ProgramVisitor for SecondPass {
                     core::panic!("Default printer expects `default` on all asm blocks.");
                 }
             } else {
-                core::panic!("Exprected an ident RHS expression on asm block.");
+                core::panic!("Expected an ident RHS expression on asm block.");
             }
         }
 
@@ -2461,29 +2469,41 @@ impl ProgramVisitor for SecondPass {
         self.printer
             .def_local_var(&var_decl.identifier.0, &var_decl.data_type.to_string());
 
-        match var_decl.value {
+        match &var_decl.value {
             Expression::IntLiteral(n) => {
                 self.printer.assign(&var_decl.identifier.0, &n.to_string())
+            },
+            Expression::Binary(lhs, op, rhs) => {
+                // self.printer.binary_add(left_var, right_var)
             }
             _ => {}
         }
     }
 
-    fn visit_function_declaration(&mut self, _func_decl: &mut FunctionDeclaration) {
+    // fn visit_statement(&mut self, statement: &mut Statement) {
+    //     match statement {
+    //         Statement::Expression(Expression::Assignment(ass)) => {
+                
+    //         },
+    //         _ => {}
+    //     }
+    // }
+
+    fn visit_function_declaration(&mut self, func_decl: &mut FunctionDeclaration) {
         self.printer.indent_level += 1;
         self.printer.def_func(
-            &_func_decl.identifier.0,
-            _func_decl
+            &func_decl.identifier.0,
+            func_decl
                 .parameters
                 .iter()
                 .map(|(t, id)| (t.to_string(), id.0.clone()))
                 .collect::<Vec<(String, String)>>(),
-            None,
+            Some(func_decl.return_type.to_string()),
         );
 
         self.printer.indent_level += 1;
 
-        for statement in &mut _func_decl.body {
+        for statement in &mut func_decl.body {
             statement.accept(self);
         }
 
@@ -2495,17 +2515,11 @@ impl ProgramVisitor for SecondPass {
 
 fn main() {
     let input = r#"
-        asm (target = default) {
-            (local.get $ident i32)
-        }
-
-        i32 f() {
+        i32 f(i32 a, i32 b) {
             i32 z = 7;
             i32 p = 9;
-        }
 
-        asm (target = default) {
-            (local.get $ident2 i32)
+            k = 9;
         }
     "#;
     let mut tokens = collect_tokens(input);
