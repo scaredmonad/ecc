@@ -677,6 +677,7 @@ struct FunctionDeclaration {
     identifier: Identifier,
     parameters: Vec<(Type, Identifier)>,
     body: Vec<Statement>,
+    scope: Option<Rc<RefCell<Scope<FunctionDeclaration>>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -741,7 +742,7 @@ enum Declaration {
 #[derive(Debug, Clone)]
 struct Program {
     declarations: Vec<Declaration>,
-    scope: Option<Rc<RefCell<Scope>>>,
+    scope: Option<Rc<RefCell<Scope<Program>>>>,
 }
 
 impl PartialEq for Type {
@@ -1026,6 +1027,7 @@ fn assert_parse_compound_assign_expr() {
         Program {
             scope: None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
+                scope: None,
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
@@ -1141,8 +1143,9 @@ fn assert_parse_call_expr_stmt() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
+                scope: None,
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
@@ -1170,8 +1173,9 @@ fn assert_parse_call_expr_var_decl() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
+                scope: None,
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
@@ -1252,7 +1256,7 @@ fn assert_parse_asm_block_empty() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
                     data_type: Type::Int32,
@@ -1268,6 +1272,7 @@ fn assert_parse_asm_block_empty() {
                     instr_field: "".into()
                 }),
                 Declaration::Function(FunctionDeclaration {
+                    scope: None,
                     return_type: Type::Int32,
                     identifier: Identifier("f".into()),
                     parameters: vec![],
@@ -1351,7 +1356,7 @@ fn assert_parse_var_decl_bool_literal() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
                     data_type: Type::Int32,
@@ -1381,7 +1386,7 @@ fn assert_parse_var_decl_binary_expr() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
                     data_type: Type::Int32,
@@ -1439,7 +1444,7 @@ fn assert_parse_var_decl_compare_expr() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
                     data_type: Type::Int32,
@@ -1569,8 +1574,9 @@ fn assert_parse_if_stmt_empty() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
+                scope: None,
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
@@ -1600,8 +1606,9 @@ fn assert_parse_if_else_stmt_empty() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
+                scope: None,
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
@@ -1636,8 +1643,9 @@ fn assert_parse_if_else_stmt_decls() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
+                scope: None,
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
@@ -1680,8 +1688,9 @@ fn assert_parse_if_else_stmt_branching() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
+                scope: None,
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
@@ -1731,8 +1740,9 @@ fn assert_parse_if_else_stmt_multi_branching() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
+                scope: None,
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
@@ -1818,8 +1828,9 @@ fn assert_parse_while_stmt_empty() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
+                scope: None,
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
@@ -1894,8 +1905,9 @@ fn assert_parse_for_stmt_empty() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
+                scope: None,
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
@@ -2097,6 +2109,7 @@ fn parse_function_declaration(tokens: &mut Vec<Token>) -> Result<FunctionDeclara
         identifier,
         parameters,
         body,
+        scope: None,
     })
 }
 
@@ -2110,8 +2123,9 @@ fn assert_parse_fn_decl_empty() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
+                scope: None,
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![],
@@ -2133,8 +2147,9 @@ fn assert_parse_fn_decl() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
+                scope: None,
                 return_type: Type::Int32,
                 identifier: Identifier("f".into()),
                 parameters: vec![
@@ -2169,8 +2184,9 @@ fn assert_parse_fn_decl_returns() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![Declaration::Function(FunctionDeclaration {
+                scope: None,
                 return_type: Type::Bool,
                 identifier: Identifier("gt".into()),
                 parameters: vec![
@@ -2201,7 +2217,7 @@ fn assert_parse_fn_decl_order() {
     assert_eq!(
         program,
         Program {
-            scope:None,
+            scope: None,
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
                     data_type: Type::Int32,
@@ -2209,6 +2225,7 @@ fn assert_parse_fn_decl_order() {
                     value: Expression::IntLiteral(0)
                 }),
                 Declaration::Function(FunctionDeclaration {
+                    scope: None,
                     return_type: Type::Int32,
                     identifier: Identifier("i".into()),
                     parameters: vec![(Type::Int32, Identifier("j".into())),],
@@ -2270,7 +2287,10 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
         }
     }
 
-    Program { declarations, scope: None }
+    Program {
+        declarations,
+        scope: None,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -2360,38 +2380,53 @@ impl Statement {
     }
 }
 
+trait CommonASTNode {}
+
+impl CommonASTNode for Program {}
+impl CommonASTNode for FunctionDeclaration {}
+
 #[derive(Debug, Clone)]
-struct Scope {
-    parent: Option<Weak<RefCell<Scope>>>,
-    children: Vec<Rc<RefCell<Scope>>>,
-    ast_nodes: Vec<ASTNode>,
+struct Scope<T>
+where
+    T: CommonASTNode,
+{
+    parent: Option<Weak<RefCell<Scope<T>>>>,
+    children: Vec<Rc<RefCell<Scope<T>>>>,
 }
 
-impl Scope {
+impl<T> Scope<T>
+where
+    T: CommonASTNode,
+{
     fn new() -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Self {
             parent: None,
             children: Vec::new(),
-            ast_nodes: Vec::new(),
         }))
     }
 
-    fn add_child(parent: &Rc<RefCell<Self>>, ast_node: ASTNode) -> Rc<RefCell<Self>> {
+    fn add_child(parent: &Rc<RefCell<Self>>) -> Rc<RefCell<Self>> {
         let child = Rc::new(RefCell::new(Self {
             parent: Some(Rc::downgrade(parent)),
             children: Vec::new(),
-            ast_nodes: vec![ast_node],
         }));
         parent.borrow_mut().children.push(Rc::clone(&child));
         child
     }
 }
 
-struct SemanticPass {
-    current_scope: Option<Rc<RefCell<Scope>>>,
+struct SemanticPass<T>
+where
+    Self: ProgramVisitor,
+    T: CommonASTNode
+{
+    current_scope: Option<Rc<RefCell<Scope<T>>>>,
 }
 
-impl Default for SemanticPass {
+impl<T> Default for SemanticPass<T>
+where
+    Self: ProgramVisitor,
+    T: CommonASTNode {
     fn default() -> Self {
         Self {
             current_scope: None,
@@ -2399,11 +2434,25 @@ impl Default for SemanticPass {
     }
 }
 
-impl ProgramVisitor for SemanticPass {
+impl<T> ProgramVisitor for SemanticPass<T>
+where
+    Self: ProgramVisitor,
+    T: CommonASTNode {
     fn visit_program(&mut self, program: &mut Program) {
         let program_scope = Scope::new();
         program.scope = Some(Rc::clone(&program_scope));
         self.current_scope = Some(program_scope);
+        for declaration in &mut program.declarations {
+            self.visit_declaration(declaration);
+        }
+    }
+
+    fn visit_function_declaration(&mut self, func_decl: &mut FunctionDeclaration) {
+        if let Some(current_scope) = &self.current_scope {
+            let func_scope = Scope::add_child(current_scope);
+            func_decl.scope = Some(Rc::clone(&func_scope));
+            self.current_scope = Some(func_scope);
+        }
     }
 }
 
@@ -2615,7 +2664,7 @@ impl ProgramVisitor for SecondPass {
                 self.printer.raw_append(&expr_repr);
                 self.printer.assign(&var_decl.identifier.0, "");
             }
-            
+
             _ => {
                 self.printer.assign(&var_decl.identifier.0, &expr_repr);
             }
@@ -2626,7 +2675,7 @@ impl ProgramVisitor for SecondPass {
         self.printer.indent_level += 1;
         match statement {
             Statement::VariableDeclaration(var_decl) => self.visit_variable_declaration(var_decl),
-            
+
             // Do not check for Expression, which doesn't hold AssignmentExpression in the parse phase.
             Statement::ExpressionStatement(expr) => {
                 if let Expression::Assignment(ass) = expr {
@@ -2634,7 +2683,7 @@ impl ProgramVisitor for SecondPass {
                         .assign(&ass.left.0, &Printer::rec_write_expr(&ass.right));
                 }
             }
-            
+
             Statement::Return(ret) => {
                 self.printer.raw_append(&Printer::rec_write_expr(ret));
             }
