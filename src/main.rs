@@ -677,7 +677,7 @@ struct FunctionDeclaration {
     identifier: Identifier,
     parameters: Vec<(Type, Identifier)>,
     body: Vec<Statement>,
-    scope: Option<Rc<RefCell<Scope<FunctionDeclaration>>>>,
+    scope: Option<Rc<RefCell<Scope>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -742,7 +742,7 @@ enum Declaration {
 #[derive(Debug, Clone)]
 struct Program {
     declarations: Vec<Declaration>,
-    scope: Option<Rc<RefCell<Scope<Program>>>>,
+    scope: Option<Rc<RefCell<Scope>>>,
 }
 
 impl PartialEq for Type {
@@ -2380,24 +2380,13 @@ impl Statement {
     }
 }
 
-trait CommonASTNode {}
-
-impl CommonASTNode for Program {}
-impl CommonASTNode for FunctionDeclaration {}
-
 #[derive(Debug, Clone)]
-struct Scope<T>
-where
-    T: CommonASTNode,
-{
-    parent: Option<Weak<RefCell<Scope<T>>>>,
-    children: Vec<Rc<RefCell<Scope<T>>>>,
+struct Scope {
+    parent: Option<Weak<RefCell<Scope>>>,
+    children: Vec<Rc<RefCell<Scope>>>,
 }
 
-impl<T> Scope<T>
-where
-    T: CommonASTNode,
-{
+impl Scope {
     fn new() -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Self {
             parent: None,
@@ -2405,7 +2394,7 @@ where
         }))
     }
 
-    fn add_child(parent: &Rc<RefCell<Self>>) -> Rc<RefCell<Self>> {
+    fn add_child(parent: &Rc<RefCell<Self>>, ast_node: ASTNode) -> Rc<RefCell<Self>> {
         let child = Rc::new(RefCell::new(Self {
             parent: Some(Rc::downgrade(parent)),
             children: Vec::new(),
@@ -2415,18 +2404,15 @@ where
     }
 }
 
-struct SemanticPass<T>
-where
-    Self: ProgramVisitor,
-    T: CommonASTNode
-{
-    current_scope: Option<Rc<RefCell<Scope<T>>>>,
+// Level of indirection that allows any node to change the current scope. Why?
+//  1. Contextual typing (terms of a context are well-defined)
+//  2. Lookups and patching (bottom-up search of term(s) and beta reduction)
+//  3. Expression-level typing (1 + 2.3 is ambiguous, implicit casts are illegal)
+struct SemanticPass {
+    current_scope: Option<Rc<RefCell<Scope>>>,
 }
 
-impl<T> Default for SemanticPass<T>
-where
-    Self: ProgramVisitor,
-    T: CommonASTNode {
+impl Default for SemanticPass {
     fn default() -> Self {
         Self {
             current_scope: None,
@@ -2434,14 +2420,12 @@ where
     }
 }
 
-impl<T> ProgramVisitor for SemanticPass<T>
-where
-    Self: ProgramVisitor,
-    T: CommonASTNode {
+impl ProgramVisitor for SemanticPass {
     fn visit_program(&mut self, program: &mut Program) {
         let program_scope = Scope::new();
         program.scope = Some(Rc::clone(&program_scope));
         self.current_scope = Some(program_scope);
+
         for declaration in &mut program.declarations {
             self.visit_declaration(declaration);
         }
@@ -2449,7 +2433,10 @@ where
 
     fn visit_function_declaration(&mut self, func_decl: &mut FunctionDeclaration) {
         if let Some(current_scope) = &self.current_scope {
-            let func_scope = Scope::add_child(current_scope);
+            let func_scope = Scope::add_child(
+                current_scope,
+                ASTNode::FunctionDeclaration(func_decl.clone()),
+            );
             func_decl.scope = Some(Rc::clone(&func_scope));
             self.current_scope = Some(func_scope);
         }
@@ -2513,7 +2500,7 @@ impl Printer {
                     BinaryOp::Add => "i32.add",
                     BinaryOp::Sub => "i32.sub",
                     BinaryOp::Mul => "i32.mul",
-                    BinaryOp::Div => "i32.div_s", /* signed 32-bit integers division, for unsigned use i32.div_u */
+                    BinaryOp::Div => "i32.div_s", /* signed 32-bit integer division, for unsigned use i32.div_u */
                 };
 
                 format!("({} {} {})", op_str, lhs_str, rhs_str)
