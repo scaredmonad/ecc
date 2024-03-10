@@ -3,6 +3,8 @@
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
+mod prog;
+
 static STD_LINEAR_PRELUDE: &str = include_str!("prelude.wat");
 
 #[derive(Debug, Clone, PartialEq)]
@@ -2384,6 +2386,7 @@ impl Statement {
 struct Scope {
     parent: Option<Weak<RefCell<Scope>>>,
     children: Vec<Rc<RefCell<Scope>>>,
+    curr_node: Option<ASTNode>,
 }
 
 impl Scope {
@@ -2391,13 +2394,15 @@ impl Scope {
         Rc::new(RefCell::new(Self {
             parent: None,
             children: Vec::new(),
+            curr_node: None,
         }))
     }
 
-    fn add_child(parent: &Rc<RefCell<Self>>, ast_node: ASTNode) -> Rc<RefCell<Self>> {
+    fn add_child(parent: &Rc<RefCell<Self>>, curr_node: Option<ASTNode>) -> Rc<RefCell<Self>> {
         let child = Rc::new(RefCell::new(Self {
             parent: Some(Rc::downgrade(parent)),
             children: Vec::new(),
+            curr_node,
         }));
         parent.borrow_mut().children.push(Rc::clone(&child));
         child
@@ -2435,7 +2440,7 @@ impl ProgramVisitor for SemanticPass {
         if let Some(current_scope) = &self.current_scope {
             let func_scope = Scope::add_child(
                 current_scope,
-                ASTNode::FunctionDeclaration(func_decl.clone()),
+                Some(ASTNode::FunctionDeclaration(func_decl.clone())),
             );
             func_decl.scope = Some(Rc::clone(&func_scope));
             self.current_scope = Some(func_scope);
@@ -2677,10 +2682,14 @@ impl ProgramVisitor for SecondPass {
 
             _ => {}
         }
-        // self.printer.indent_level -= 1;
+        self.printer.indent_level -= 1; // /!\
     }
 
     fn visit_function_declaration(&mut self, func_decl: &mut FunctionDeclaration) {
+        // if let Some(parent) = func_decl.clone().scope {
+        //     dbg!(parent);
+        // }
+
         self.printer.indent_level += 1;
         self.printer.def_func(
             &func_decl.identifier.0,
@@ -2700,25 +2709,18 @@ impl ProgramVisitor for SecondPass {
     }
 }
 
-fn main() {
-    let input = r#"
-        i32 add(i32 a, i32 b) {
-            a = b;
-            return a + b;
-        }
-
-        i32 f(i32 a, i32 b) {
-            i32 c = a + b;
-            return c;
-        }
-    "#;
+pub(crate) fn compile(input: &str) -> Result<String, ()> {
     let mut tokens = collect_tokens(input);
     let mut program = parse_program(&mut tokens);
     let mut semantic_pass_visitor = SemanticPass::default();
-    program.accept(&mut semantic_pass_visitor);
-    dbg!(&program);
+    program.accept(&mut semantic_pass_visitor); // may fail, so sequential
     let mut second_pass_visitor = SecondPass::default();
     program.accept(&mut second_pass_visitor);
     let output = second_pass_visitor.printer.to_string();
-    println!("{}", output);
+    Ok(output)
+}
+
+fn main() {
+    use crate::prog::compile_from_env;
+    compile_from_env();
 }
