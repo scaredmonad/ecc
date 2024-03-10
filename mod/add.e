@@ -1,3 +1,3 @@
-i32 add(i32 a, i32 b) {
+int mod_add(int a, int b) {
   return a + b;
 }

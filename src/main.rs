@@ -573,7 +573,7 @@ enum Type {
 impl From<&str> for Type {
     fn from(s: &str) -> Self {
         match s {
-            "i32" => Type::Int32,
+            "int" | "i32" => Type::Int32,
             "i64" => Type::Int64,
             "u32" => Type::Uint32,
             "u64" => Type::Uint64,

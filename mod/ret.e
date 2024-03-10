@@ -1,3 +1,3 @@
-i32 mod_ret() {
+int mod_ret() {
   return 0;
 }

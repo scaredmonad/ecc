@@ -1,1 +1,1 @@
-i32 main() {}
+int main() {}

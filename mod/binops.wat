@@ -1,5 +1,5 @@
 (module
-  (func $mod_ret  (result i32))
+  (func $mod_binops  (result i32))
       (local $a i32)
       (set_local $a (i32.add (i32.const 1) (i32.const 1)))
       (local $b i32)
