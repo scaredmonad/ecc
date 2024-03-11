@@ -690,6 +690,7 @@ struct VariableDeclaration {
     data_type: Type,
     identifier: Identifier,
     value: Expression,
+    scope: Option<Rc<RefCell<Scope>>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -926,6 +927,7 @@ fn parse_variable_declaration(tokens: &mut Vec<Token>) -> VariableDeclaration {
         data_type: Type::from(type_identifier.as_str()),
         identifier: Identifier(variable_identifier),
         value,
+        scope: None,
     }
 }
 
@@ -938,6 +940,7 @@ fn assert_parse_var_decl() {
         program,
         Program {
             declarations: vec![Declaration::Variable(VariableDeclaration {
+                scope: None,
                 data_type: Type::Int32,
                 identifier: Identifier("a".into()),
                 value: Expression::IntLiteral(5)
@@ -957,11 +960,13 @@ fn assert_parse_multi_var_decl() {
         Program {
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("a".into()),
                     value: Expression::IntLiteral(5)
                 }),
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("b".into()),
                     value: Expression::IntLiteral(9)
@@ -981,6 +986,7 @@ fn assert_parse_uninit_var_decl() {
         program,
         Program {
             declarations: vec![Declaration::Variable(VariableDeclaration {
+                scope: None,
                 data_type: Type::Int32,
                 identifier: Identifier("a".into()),
                 value: Expression::Uninit
@@ -1185,6 +1191,7 @@ fn assert_parse_call_expr_var_decl() {
                 identifier: Identifier("f".into()),
                 parameters: vec![],
                 body: vec![Statement::VariableDeclaration(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("a".into()),
                     value: Expression::Call(Box::new(CallExpression {
@@ -1264,6 +1271,7 @@ fn assert_parse_asm_block_empty() {
             scope: None,
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("a".into()),
                     value: Expression::IntLiteral(5)
@@ -1364,11 +1372,13 @@ fn assert_parse_var_decl_bool_literal() {
             scope: None,
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("T".into()),
                     value: Expression::BoolLiteral(true)
                 }),
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("F".into()),
                     value: Expression::BoolLiteral(false)
@@ -1394,6 +1404,7 @@ fn assert_parse_var_decl_binary_expr() {
             scope: None,
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("a".into()),
                     value: Expression::Binary(
@@ -1403,6 +1414,7 @@ fn assert_parse_var_decl_binary_expr() {
                     )
                 }),
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("b".into()),
                     value: Expression::Binary(
@@ -1412,6 +1424,7 @@ fn assert_parse_var_decl_binary_expr() {
                     )
                 }),
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("c".into()),
                     value: Expression::Binary(
@@ -1421,6 +1434,7 @@ fn assert_parse_var_decl_binary_expr() {
                     )
                 }),
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("d".into()),
                     value: Expression::Binary(
@@ -1452,6 +1466,7 @@ fn assert_parse_var_decl_compare_expr() {
             scope: None,
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("T".into()),
                     value: Expression::Comparison(
@@ -1461,6 +1476,7 @@ fn assert_parse_var_decl_compare_expr() {
                     )
                 }),
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("T".into()),
                     value: Expression::Comparison(
@@ -1470,6 +1486,7 @@ fn assert_parse_var_decl_compare_expr() {
                     )
                 }),
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("T".into()),
                     value: Expression::Comparison(
@@ -1479,6 +1496,7 @@ fn assert_parse_var_decl_compare_expr() {
                     )
                 }),
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("T".into()),
                     value: Expression::Comparison(
@@ -1488,6 +1506,7 @@ fn assert_parse_var_decl_compare_expr() {
                     )
                 }),
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("T".into()),
                     value: Expression::Comparison(
@@ -1497,6 +1516,7 @@ fn assert_parse_var_decl_compare_expr() {
                     )
                 }),
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("T".into()),
                     value: Expression::Comparison(
@@ -1662,6 +1682,7 @@ fn assert_parse_if_else_stmt_decls() {
                     )),
                     body: vec![
                         Statement::VariableDeclaration(VariableDeclaration {
+                            scope: None,
                             data_type: Type::Int32,
                             identifier: Identifier("k".into()),
                             value: Expression::IntLiteral(2)
@@ -1918,6 +1939,7 @@ fn assert_parse_for_stmt_empty() {
                 parameters: vec![],
                 body: vec![Statement::ForLoop(ForLoop {
                     init: VariableDeclaration {
+                        scope: None,
                         data_type: Type::Int32,
                         identifier: Identifier("i".into()),
                         value: Expression::IntLiteral(0)
@@ -2164,6 +2186,7 @@ fn assert_parse_fn_decl() {
                     (Type::Bool, Identifier("d".into())),
                 ],
                 body: vec![Statement::VariableDeclaration(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("k".into()),
                     value: Expression::Binary(
@@ -2225,6 +2248,7 @@ fn assert_parse_fn_decl_order() {
             scope: None,
             declarations: vec![
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("i".into()),
                     value: Expression::IntLiteral(0)
@@ -2235,12 +2259,14 @@ fn assert_parse_fn_decl_order() {
                     identifier: Identifier("i".into()),
                     parameters: vec![(Type::Int32, Identifier("j".into())),],
                     body: vec![Statement::VariableDeclaration(VariableDeclaration {
+                        scope: None,
                         data_type: Type::Int32,
                         identifier: Identifier("i".into()),
                         value: Expression::Uninit
                     })]
                 }),
                 Declaration::Variable(VariableDeclaration {
+                    scope: None,
                     data_type: Type::Int32,
                     identifier: Identifier("j".into()),
                     value: Expression::IntLiteral(0)
@@ -2302,6 +2328,7 @@ fn parse_program(tokens: &mut Vec<Token>) -> Program {
 enum ASTNode {
     Program(Program),
     FunctionDeclaration(FunctionDeclaration),
+    VariableDeclaration(VariableDeclaration),
 }
 
 // The visitor implementation we'll be using will allow multiple mutable references to a `Program`--no clone().
@@ -2449,6 +2476,17 @@ impl ProgramVisitor for SemanticPass {
             self.current_scope = Some(func_scope);
         }
     }
+
+    // fn visit_function_declaration(&mut self, func_decl: &mut FunctionDeclaration) {
+    //     if let Some(current_scope) = &self.current_scope {
+    //         let func_scope = Scope::add_child(
+    //             current_scope,
+    //             Some(ASTNode::FunctionDeclaration(func_decl.clone())),
+    //         );
+    //         func_decl.scope = Some(Rc::clone(&func_scope));
+    //         self.current_scope = Some(func_scope);
+    //     }
+    // }
 }
 
 // We use a Vec<String> because we can later iterate and collect into a
@@ -2706,7 +2744,7 @@ impl ProgramVisitor for SecondPass {
                 .iter()
                 .map(|(t, id)| (t.to_string(), id.0.clone()))
                 .collect::<Vec<(String, String)>>(),
-                retkind,
+            retkind,
         );
         self.printer.indent_level += 1;
         for statement in &mut func_decl.body {
