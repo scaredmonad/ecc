@@ -589,14 +589,14 @@ impl From<&str> for Type {
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let type_str = match self {
-            Type::Int32 => "i32",
+            Type::Bool | Type::Int32 => "i32", // fake bools
             Type::Int64 => "i64",
             Type::Float32 => "f32",
             Type::Float64 => "f64",
-            Type::Bool => "bool",
             Type::Char => "char",
             Type::Void => "void",
         };
+
         write!(f, "{}", type_str)
     }
 }
@@ -755,7 +755,12 @@ impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Type::Int32, Type::Int32) => true,
+            (Type::Int64, Type::Int64) => true,
+            (Type::Float32, Type::Float32) => true,
+            (Type::Float64, Type::Float64) => true,
+            (Type::Void, Type::Void) => true,
             (Type::Bool, Type::Bool) => true,
+            (Type::Char, Type::Char) => true,
             _ => false,
         }
     }
@@ -2537,15 +2542,32 @@ impl Printer {
         ));
     }
 
+    #[allow(unused_assignments)]
     fn rec_write_expr(expr: &Expression, scope: Option<Rc<RefCell<Scope>>>) -> String {
         match expr {
             Expression::Uninit => String::new(),
             Expression::IntLiteral(value) => {
-                let curr_non_term = &scope.as_ref().unwrap().borrow().curr_node;
-                let expected_type = match curr_non_term {
-                    Some(ASTNode::VariableDeclaration(var_decl)) => var_decl.data_type.to_string(),
-                    _ => "i32".into(),
+                // let curr_non_term = &scope.as_ref().unwrap().borrow().curr_node;
+                let mut expected_type = String::new();
+
+                match &scope {
+                    Some(s) => {
+                        let curr_non_term = &s.borrow().curr_node;
+                        expected_type = match curr_non_term {
+                            Some(ASTNode::VariableDeclaration(var_decl)) => {
+                                var_decl.data_type.to_string()
+                            }
+                            _ => "i32".into(),
+                        };
+                    }
+                    _ => expected_type = "i32".into(), // why?
+                                                       // This issue arises in the if stmt only (so far)
                 };
+
+                // let expected_type = match curr_non_term {
+                //     Some(ASTNode::VariableDeclaration(var_decl)) => var_decl.data_type.to_string(),
+                //     _ => "i32".into(),
+                // };
 
                 format!("({}.const {})", expected_type, value)
             }
@@ -2605,23 +2627,6 @@ impl Printer {
         }
     }
 
-    fn repr_get_ident(&mut self, var_name: &str) -> String {
-        format!(
-            "{}(get_local ${})",
-            "  ".repeat(self.indent_level.into()),
-            var_name
-        )
-    }
-
-    fn binary_add(&mut self, left_var: &str, right_var: &str) {
-        self.lines.push(format!(
-            "{}(i32.add (get_local ${}) (get_local ${}))",
-            "  ".repeat(self.indent_level.into()),
-            left_var,
-            right_var
-        ));
-    }
-
     fn assign(&mut self, var_name: &str, value: &str) {
         self.lines.push(format!(
             "{}(set_local ${} {})",
@@ -2653,6 +2658,24 @@ impl Printer {
             .push(format!("{})", "  ".repeat(self.indent_level.into())));
     }
 
+    fn def_if(&mut self, condition: String) {
+        self.lines.push(format!(
+            "{}(if {}",
+            "  ".repeat(self.indent_level.into()),
+            condition
+        ));
+    }
+
+    fn def_then(&mut self) {
+        self.lines
+            .push(format!("{}(then", "  ".repeat(self.indent_level.into()),));
+    }
+
+    fn def_else(&mut self) {
+        self.lines
+            .push(format!("{}(else", "  ".repeat(self.indent_level.into()),));
+    }
+
     fn raw_append(&mut self, value: &str) {
         self.lines.push(value.into())
     }
@@ -2662,11 +2685,11 @@ impl Printer {
     }
 }
 
-struct SecondPass {
+struct WritePass {
     printer: Printer,
 }
 
-impl Default for SecondPass {
+impl Default for WritePass {
     fn default() -> Self {
         Self {
             printer: Printer::new(),
@@ -2674,7 +2697,7 @@ impl Default for SecondPass {
     }
 }
 
-impl ProgramVisitor for SecondPass {
+impl ProgramVisitor for WritePass {
     fn visit_program(&mut self, program: &mut Program) {
         self.printer.def_mod();
 
@@ -2727,7 +2750,8 @@ impl ProgramVisitor for SecondPass {
     }
 
     fn visit_statement(&mut self, statement: &mut Statement) {
-        self.printer.indent_level += 1;
+        // self.printer.indent_level += 1;
+
         match statement {
             Statement::VariableDeclaration(var_decl) => self.visit_variable_declaration(var_decl),
 
@@ -2743,18 +2767,32 @@ impl ProgramVisitor for SecondPass {
                 self.printer.raw_append(&Printer::rec_write_expr(ret, None));
             }
 
+            Statement::IfStatement(if_stmt) => {
+                let condition = Printer::rec_write_expr(&if_stmt.condition, None);
+                self.printer.def_if(condition);
+                self.printer.indent_level += 1;
+                self.printer.def_then();
+                self.printer.indent_level += 1;
+
+                if let Some(alt) = &if_stmt.alternative {
+                    self.printer.def_else();
+                    self.printer.indent_level += 1;
+                }
+
+                self.printer.indent_level += 1;
+                self.printer.end_func();
+                self.printer.indent_level -= 1;
+            }
+
             _ => {}
         }
+
         self.printer.indent_level -= 1; // /!\
     }
 
     fn visit_function_declaration(&mut self, func_decl: &mut FunctionDeclaration) {
-        // if let Some(parent) = func_decl.clone().scope {
-        //     dbg!(parent);
-        // }
-
         self.printer.indent_level += 1;
-        let retkind = if func_decl.return_type.to_string() == "void" {
+        let retkind = if func_decl.return_type == Type::Void {
             None
         } else {
             Some(func_decl.return_type.to_string())
@@ -2783,9 +2821,9 @@ pub(crate) fn compile(input: &str) -> Result<String, ()> {
     let mut program = parse_program(&mut tokens);
     let mut semantic_pass_visitor = SemanticPass::default();
     program.accept(&mut semantic_pass_visitor); // may fail, so sequential
-    let mut second_pass_visitor = SecondPass::default();
-    program.accept(&mut second_pass_visitor);
-    let output = second_pass_visitor.printer.to_string();
+    let mut write_pass_visitor = WritePass::default();
+    program.accept(&mut write_pass_visitor);
+    let output = write_pass_visitor.printer.to_string();
     Ok(output)
 }
 

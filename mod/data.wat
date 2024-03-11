@@ -4,5 +4,7 @@
       (set_local $a (i32.const 1))
       (local $b i64)
       (set_local $b (i64.const 2))
+      (local $k i32)
+      (set_local $k (i32.const 0))
   )
 )
