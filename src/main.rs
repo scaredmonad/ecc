@@ -560,10 +560,11 @@ fn assert_tokenize_input() {
 // Ref: https://webassembly.github.io/spec/core/syntax/types.html
 #[derive(Debug, Clone)]
 enum Type {
+    Void,
     Int32,
     Int64,
-    Uint32,
-    Uint64,
+    Float32,
+    Float64,
     Bool,
     Char, // @todo: funcref & externref which work with the output.
           /* Entries for SIMD vector types, which we can represent as packed floats or
@@ -574,11 +575,12 @@ impl From<&str> for Type {
     fn from(s: &str) -> Self {
         match s {
             "int" | "i32" => Type::Int32,
-            "i64" => Type::Int64,
-            "u32" => Type::Uint32,
-            "u64" => Type::Uint64,
+            "long" | "i64" => Type::Int64,
+            "float" | "f32" => Type::Float32,
+            "double" | "f64" => Type::Float64,
             "bool" => Type::Bool,
             "char" => Type::Char,
+            "void" => Type::Void,
             _ => panic!("Invalid type"),
         }
     }
@@ -589,10 +591,11 @@ impl std::fmt::Display for Type {
         let type_str = match self {
             Type::Int32 => "i32",
             Type::Int64 => "i64",
-            Type::Uint32 => "u32",
-            Type::Uint64 => "u64",
+            Type::Float32 => "f32",
+            Type::Float64 => "f64",
             Type::Bool => "bool",
             Type::Char => "char",
+            Type::Void => "void",
         };
         write!(f, "{}", type_str)
     }
@@ -2691,6 +2694,11 @@ impl ProgramVisitor for SecondPass {
         // }
 
         self.printer.indent_level += 1;
+        let retkind = if func_decl.return_type.to_string() == "void" {
+            None
+        } else {
+            Some(func_decl.return_type.to_string())
+        };
         self.printer.def_func(
             &func_decl.identifier.0,
             func_decl
@@ -2698,7 +2706,7 @@ impl ProgramVisitor for SecondPass {
                 .iter()
                 .map(|(t, id)| (t.to_string(), id.0.clone()))
                 .collect::<Vec<(String, String)>>(),
-            Some(func_decl.return_type.to_string()),
+                retkind,
         );
         self.printer.indent_level += 1;
         for statement in &mut func_decl.body {

@@ -1,8 +1,8 @@
+use crate::compile;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::compile;
 
 // Because nobody needs structopt or clap. It's not ergonomic, we'd expect
 // a tuple of HashMap (fields) and Vec (flags).
@@ -15,7 +15,8 @@ fn argparse() -> HashMap<String, String> {
     while let Some(arg) = iter.next() {
         if arg.starts_with('-') {
             let key = arg.trim_start_matches('-').to_string();
-            if let Some(next_arg) = iter.peek() { // Check is a value or another flag.
+            if let Some(next_arg) = iter.peek() {
+                // Check is a value or another flag.
                 if next_arg.starts_with('-') {
                     // Next arg is a flag, current flag is boolean.
                     args_map.insert(key, "true".to_string());
@@ -63,7 +64,8 @@ pub(crate) fn compile_from_env() {
     let args = argparse();
 
     for (k, v) in &args {
-        if v == "true" { // We know it's a flag.
+        if v == "true" {
+            // We know it's a flag.
             core::panic!("Flags not yet supported.")
         }
 
