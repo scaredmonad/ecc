@@ -2541,9 +2541,14 @@ impl Printer {
         match expr {
             Expression::Uninit => String::new(),
             Expression::IntLiteral(value) => {
-                dbg!(scope);
-                format!("(i32.const {})", value)
-            },
+                let curr_non_term = &scope.as_ref().unwrap().borrow().curr_node;
+                let expected_type = match curr_non_term {
+                    Some(ASTNode::VariableDeclaration(var_decl)) => var_decl.data_type.to_string(),
+                    _ => "i32".into(),
+                };
+
+                format!("({}.const {})", expected_type, value)
+            }
             Expression::BoolLiteral(value) => {
                 let bool_val = if *value { "1" } else { "0" };
                 format!("(i32.const {})", bool_val)
