@@ -2458,6 +2458,7 @@ impl Default for SemanticPass {
 impl ProgramVisitor for SemanticPass {
     fn visit_program(&mut self, program: &mut Program) {
         let program_scope = Scope::new();
+
         program.scope = Some(Rc::clone(&program_scope));
         self.current_scope = Some(program_scope);
 
@@ -2472,21 +2473,27 @@ impl ProgramVisitor for SemanticPass {
                 current_scope,
                 Some(ASTNode::FunctionDeclaration(func_decl.clone())),
             );
+
+            func_decl.scope = Some(Rc::clone(&func_scope));
+            self.current_scope = Some(func_scope);
+
+            for statement in &mut func_decl.body {
+                statement.accept(self);
+            }
+        }
+    }
+
+    fn visit_variable_declaration(&mut self, func_decl: &mut VariableDeclaration) {
+        if let Some(current_scope) = &self.current_scope {
+            let func_scope = Scope::add_child(
+                current_scope,
+                Some(ASTNode::VariableDeclaration(func_decl.clone())),
+            );
+
             func_decl.scope = Some(Rc::clone(&func_scope));
             self.current_scope = Some(func_scope);
         }
     }
-
-    // fn visit_function_declaration(&mut self, func_decl: &mut FunctionDeclaration) {
-    //     if let Some(current_scope) = &self.current_scope {
-    //         let func_scope = Scope::add_child(
-    //             current_scope,
-    //             Some(ASTNode::FunctionDeclaration(func_decl.clone())),
-    //         );
-    //         func_decl.scope = Some(Rc::clone(&func_scope));
-    //         self.current_scope = Some(func_scope);
-    //     }
-    // }
 }
 
 // We use a Vec<String> because we can later iterate and collect into a
@@ -2689,7 +2696,11 @@ impl ProgramVisitor for SecondPass {
     fn visit_variable_declaration(&mut self, var_decl: &mut VariableDeclaration) {
         self.printer
             .def_local_var(&var_decl.identifier.0, &var_decl.data_type.to_string());
+
         let expr_repr = Printer::rec_write_expr(&var_decl.value);
+
+        dbg!(&var_decl.scope);
+
         // The stack model of WASM forces us to push all params, call and then
         //  do an empty set_local, which gets the return value for assignment.
         match &var_decl.value {

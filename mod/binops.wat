@@ -8,5 +8,5 @@
       (set_local $c (i32.mul (i32.const 1) (i32.const 1)))
       (local $d i32)
       (set_local $d (i32.div_s (i32.const 1) (i32.const 1)))
-)
+  )
 )
