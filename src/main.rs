@@ -2750,8 +2750,9 @@ impl ProgramVisitor for SecondPass {
         for statement in &mut func_decl.body {
             statement.accept(self);
         }
-        self.printer.indent_level = 0;
+        self.printer.indent_level -= 1;
         self.printer.end_func();
+        self.printer.indent_level = 0;
     }
 }
 
