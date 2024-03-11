@@ -2774,9 +2774,19 @@ impl ProgramVisitor for WritePass {
                 self.printer.def_then();
                 self.printer.indent_level += 1;
 
-                if let Some(alt) = &if_stmt.alternative {
+                for statement in &mut if_stmt.body {
+                    statement.accept(self);
+                }
+
+                if let Some(alt) = &mut if_stmt.alternative {
                     self.printer.def_else();
                     self.printer.indent_level += 1;
+
+                    for statement in alt
+                    /*.iter_mut()*/
+                    {
+                        statement.accept(self);
+                    }
                 }
 
                 self.printer.indent_level += 1;
