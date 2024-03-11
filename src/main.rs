@@ -2537,18 +2537,21 @@ impl Printer {
         ));
     }
 
-    fn rec_write_expr(expr: &Expression) -> String {
+    fn rec_write_expr(expr: &Expression, scope: Option<Rc<RefCell<Scope>>>) -> String {
         match expr {
             Expression::Uninit => String::new(),
-            Expression::IntLiteral(value) => format!("(i32.const {})", value),
+            Expression::IntLiteral(value) => {
+                dbg!(scope);
+                format!("(i32.const {})", value)
+            },
             Expression::BoolLiteral(value) => {
                 let bool_val = if *value { "1" } else { "0" };
                 format!("(i32.const {})", bool_val)
             }
             Expression::Variable(Identifier(name)) => format!("(get_local ${})", name),
             Expression::Binary(left, op, right) => {
-                let lhs_str = Self::rec_write_expr(left);
-                let rhs_str = Self::rec_write_expr(right);
+                let lhs_str = Self::rec_write_expr(left, scope.clone());
+                let rhs_str = Self::rec_write_expr(right, scope);
                 let op_str = match op {
                     BinaryOp::Add => "i32.add",
                     BinaryOp::Sub => "i32.sub",
@@ -2560,8 +2563,8 @@ impl Printer {
             }
             // We only do signed comparisons!
             Expression::Comparison(left, op, right) => {
-                let lhs_str = Self::rec_write_expr(left);
-                let rhs_str = Self::rec_write_expr(right);
+                let lhs_str = Self::rec_write_expr(left, scope.clone());
+                let rhs_str = Self::rec_write_expr(right, scope);
                 let op_str = match op {
                     CompareOp::StrictEqual => "i32.eq",
                     CompareOp::StrictUnequal => "i32.ne",
@@ -2585,7 +2588,10 @@ impl Printer {
                 let params = call_expr
                     .parameters
                     .iter()
-                    .map(Self::rec_write_expr)
+                    .map(|e| {
+                        let scope_clone = scope.clone();
+                        Self::rec_write_expr(e, scope_clone)
+                    })
                     .collect::<Vec<_>>()
                     .join("\n");
                 format!("{}\n(call ${})", params, callee)
@@ -2697,9 +2703,9 @@ impl ProgramVisitor for SecondPass {
         self.printer
             .def_local_var(&var_decl.identifier.0, &var_decl.data_type.to_string());
 
-        let expr_repr = Printer::rec_write_expr(&var_decl.value);
+        let expr_repr = Printer::rec_write_expr(&var_decl.value, var_decl.scope.clone());
 
-        dbg!(&var_decl.scope);
+        // dbg!(&var_decl.scope);
 
         // The stack model of WASM forces us to push all params, call and then
         //  do an empty set_local, which gets the return value for assignment.
@@ -2724,12 +2730,12 @@ impl ProgramVisitor for SecondPass {
             Statement::ExpressionStatement(expr) => {
                 if let Expression::Assignment(ass) = expr {
                     self.printer
-                        .assign(&ass.left.0, &Printer::rec_write_expr(&ass.right));
+                        .assign(&ass.left.0, &Printer::rec_write_expr(&ass.right, None));
                 }
             }
 
             Statement::Return(ret) => {
-                self.printer.raw_append(&Printer::rec_write_expr(ret));
+                self.printer.raw_append(&Printer::rec_write_expr(ret, None));
             }
 
             _ => {}
