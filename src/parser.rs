@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 // Ref: https://webassembly.github.io/spec/core/syntax/types.html
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, Hash)]
 pub(crate) enum Type {
     Void,
     Int32,

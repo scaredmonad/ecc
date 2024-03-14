@@ -12,6 +12,7 @@ mod printer;
 mod prog;
 mod scope;
 mod semantics;
+mod types;
 mod visitor;
 
 static STD_LINEAR_PRELUDE: &str = include_str!("prelude.wat");
