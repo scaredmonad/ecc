@@ -96,12 +96,12 @@ enum Term {
     PolyType(Vec<Type>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Substitution {
     mappings: Set<(Term, Term)>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Context {
     definitions: Vec<Term>,
 }
