@@ -114,6 +114,33 @@ struct TypeContext {
     definitions: Set<Term>,
 }
 
+impl TypeContext {
+    pub fn generalize(&self, term: &Term) -> Term {
+        let term_free_vars = term.free_vars();
+        let mut context_free_vars = Set::new();
+
+        for t in self.definitions.elements.iter() {
+            if let Term::Var(name) = t {
+                context_free_vars.elements.insert(name.clone());
+            }
+        }
+
+        let mut generalizable_vars = Set::new();
+
+        for var in term_free_vars.elements.iter() {
+            if !context_free_vars.elements.contains(var) {
+                generalizable_vars.elements.insert(var.clone());
+            }
+        }
+
+        if generalizable_vars.elements.is_empty() {
+            term.clone()
+        } else {
+            term.clone()
+        }
+    }
+}
+
 trait Free {
     fn free_vars(&self) -> Set<String>;
 }
