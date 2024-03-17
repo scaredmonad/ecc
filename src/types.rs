@@ -101,6 +101,12 @@ struct Substitution {
     mappings: Set<(Term, Term)>,
 }
 
+impl Substitution {
+    fn make(&mut self, from: Term, to: Term) {
+        self.mappings.elements.insert((from, to));
+    }
+}
+
 impl core::default::Default for Substitution {
     fn default() -> Self {
         Self {
@@ -122,6 +128,30 @@ impl Add for Substitution {
 
         Substitution { mappings: combined }
     }
+}
+
+#[test]
+fn assert_empty_substitution() {
+    let subst1 = Substitution::default();
+    let subst2 = Substitution::default();
+    assert_eq!(subst1, subst2);
+}
+
+#[test]
+fn assert_make_substitutions() {
+    let mut subst1 = Substitution::default();
+    subst1.make(Term::Var("A".into()), Term::Var("B".into()));
+    assert_eq!(true, subst1.mappings.elements.len() == 1);
+}
+
+#[test]
+fn assert_can_combine_substitutions() {
+    let mut subst1 = Substitution::default();
+    subst1.make(Term::Var("A".into()), Term::Var("B".into()));
+    let mut subst2 = Substitution::default();
+    subst2.make(Term::Var("A".into()), Term::Var("B".into()));
+    dbg!(subst1.clone());
+    assert_eq!(subst1, subst2);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
