@@ -109,6 +109,21 @@ impl core::default::Default for Substitution {
     }
 }
 
+impl Add for Substitution {
+    type Output = Self;
+
+    // We combine by addition over subst.combine().
+    fn add(self, other: Self) -> Self::Output {
+        let mut combined = self.mappings.clone();
+
+        for elem in other.mappings.elements {
+            combined.elements.insert(elem);
+        }
+
+        Substitution { mappings: combined }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct TypeContext {
     definitions: Set<Term>,
