@@ -113,3 +113,37 @@ impl core::default::Default for Substitution {
 struct TypeContext {
     definitions: Set<Term>,
 }
+
+trait Free {
+    fn free_vars(&self) -> Set<String>;
+}
+
+impl Free for Term {
+    fn free_vars(&self) -> Set<String> {
+        match self {
+            Term::Var(name) => {
+                let mut vars = Set::new();
+                vars.elements.insert(name.clone());
+                vars
+            }
+
+            Term::Abs(param, body) => {
+                let mut vars = body.free_vars();
+                vars.elements.remove(param);
+                vars
+            }
+
+            Term::App(f, arg) => {
+                let mut vars = f.free_vars();
+
+                for var in arg.free_vars().elements.iter() {
+                    vars.elements.insert(var.clone());
+                }
+
+                vars
+            }
+
+            Term::MonoType(_) | Term::PolyType(_) => Set::new(),
+        }
+    }
+}
