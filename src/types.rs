@@ -97,6 +97,46 @@ enum Term {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+enum TermOrContext {
+    Term(Box<Term>),
+    Context(Box<TypeContext>),
+}
+
+trait Free {
+    fn free_vars(&self) -> Set<String>;
+}
+
+impl Free for Term {
+    fn free_vars(&self) -> Set<String> {
+        match self {
+            Term::Var(name) => {
+                let mut vars = Set::new();
+                vars.elements.insert(name.clone());
+                vars
+            }
+
+            Term::Abs(param, body) => {
+                let mut vars = body.free_vars();
+                vars.elements.remove(param);
+                vars
+            }
+
+            Term::App(f, arg) => {
+                let mut vars = f.free_vars();
+
+                for var in arg.free_vars().elements.iter() {
+                    vars.elements.insert(var.clone());
+                }
+
+                vars
+            }
+
+            Term::MonoType(_) | Term::PolyType(_) => Set::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Substitution {
     mappings: Set<(Term, Term)>,
 }
@@ -104,6 +144,49 @@ struct Substitution {
 impl Substitution {
     fn make(&mut self, from: Term, to: Term) {
         self.mappings.elements.insert((from, to));
+    }
+
+    pub fn apply(&self, toc: TermOrContext) -> TermOrContext {
+        match toc {
+            // Recursively apply substitution to the Term.
+            TermOrContext::Term(t) => TermOrContext::Term(Box::new(self.apply_term(&t))),
+
+            // Apply substitution to each Term in the TypeContext.
+            TermOrContext::Context(ctx) => {
+                let mut new_ctx = TypeContext::default();
+
+                for term in ctx.definitions.elements.iter() {
+                    new_ctx.definitions.elements.insert(self.apply_term(term));
+                }
+
+                TermOrContext::Context(Box::new(new_ctx))
+            }
+        }
+    }
+
+    fn apply_term(&self, term: &Term) -> Term {
+        match term {
+            Term::Var(name) => {
+                for (var, typ) in &self.mappings.elements {
+                    if let Term::Var(var_name) = var {
+                        if var_name == name {
+                            return typ.clone();
+                        }
+                    }
+                }
+
+                term.clone()
+            }
+
+            Term::Abs(param, body) => Term::Abs(param.clone(), Box::new(self.apply_term(body))),
+
+            Term::App(f, arg) => {
+                Term::App(Box::new(self.apply_term(f)), Box::new(self.apply_term(arg)))
+            }
+
+            // MonoType and PolyType do not contain variables that need substitution.
+            _ => term.clone(),
+        }
     }
 }
 
@@ -159,6 +242,14 @@ struct TypeContext {
     definitions: Set<Term>,
 }
 
+impl core::default::Default for TypeContext {
+    fn default() -> Self {
+        Self {
+            definitions: Set::new(),
+        }
+    }
+}
+
 impl TypeContext {
     pub fn generalize(&self, term: &Term) -> Term {
         let term_free_vars = term.free_vars();
@@ -182,40 +273,6 @@ impl TypeContext {
             term.clone()
         } else {
             term.clone()
-        }
-    }
-}
-
-trait Free {
-    fn free_vars(&self) -> Set<String>;
-}
-
-impl Free for Term {
-    fn free_vars(&self) -> Set<String> {
-        match self {
-            Term::Var(name) => {
-                let mut vars = Set::new();
-                vars.elements.insert(name.clone());
-                vars
-            }
-
-            Term::Abs(param, body) => {
-                let mut vars = body.free_vars();
-                vars.elements.remove(param);
-                vars
-            }
-
-            Term::App(f, arg) => {
-                let mut vars = f.free_vars();
-
-                for var in arg.free_vars().elements.iter() {
-                    vars.elements.insert(var.clone());
-                }
-
-                vars
-            }
-
-            Term::MonoType(_) | Term::PolyType(_) => Set::new(),
         }
     }
 }
