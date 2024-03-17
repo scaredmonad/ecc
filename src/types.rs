@@ -101,7 +101,15 @@ struct Substitution {
     mappings: Set<(Term, Term)>,
 }
 
+impl core::default::Default for Substitution {
+    fn default() -> Self {
+        Self {
+            mappings: Set::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Context {
-    definitions: Vec<Term>,
+struct TypeContext {
+    definitions: Set<Term>,
 }
