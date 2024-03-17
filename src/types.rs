@@ -92,7 +92,7 @@ enum Term {
     Var(String),
     Abs(String, Box<Term>),
     App(Box<Term>, Box<Term>),
-    MonoType(Type),
+    MonoType(Box<Term>),
     PolyType(Vec<Type>),
 }
 
@@ -100,6 +100,20 @@ enum Term {
 enum TermOrContext {
     Term(Box<Term>),
     Context(Box<TypeContext>),
+}
+
+impl Term {
+    // Matches a Term against a specific type variable. Accordingly, it doesn't work
+    // for nested structures or polymorphic types (cf. other implementations).
+    fn contains_var(&self, var_term: &Term) -> bool {
+        match (self, var_term) {
+            (Term::Var(name), Term::Var(var_name)) => name == var_name,
+            (Term::Abs(_, body), _) => body.contains_var(var_term),
+            (Term::App(f, arg), _) => f.contains_var(var_term) || arg.contains_var(var_term),
+            (Term::MonoType(term), _) => term.contains_var(var_term),
+            _ => false,
+        }
+    }
 }
 
 trait Free {
