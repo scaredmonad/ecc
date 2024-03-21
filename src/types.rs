@@ -290,3 +290,50 @@ impl TypeContext {
         }
     }
 }
+
+fn unify(t1: &Term, t2: &Term) -> Result<Substitution, String> {
+    match (t1, t2) {
+        // Γ ⊢ x:τ ≡ x:τ
+        (Term::Var(name1), Term::Var(name2)) if name1 == name2 => Ok(Substitution::default()),
+
+        // Γ ⊢ x:σ ≡ τ such that τ does not contain x
+        (Term::Var(name), term) | (term, Term::Var(name))
+            if !term.contains_var(&Term::Var(name.clone())) =>
+        {
+            let mut subst = Substitution::default();
+            subst.make(Term::Var(name.clone()), (*term).clone());
+            Ok(subst)
+        }
+
+        // Γ ⊢ λx.σ1 ≡ λx.σ2 => Γ, x:σ1 ⊢ σ1 ≡ σ2
+        (Term::Abs(param1, body1), Term::Abs(param2, body2)) => {
+            let body_subst = unify(&*body1, &*body2)?;
+            let param_subst = unify(&Term::Var(param1.clone()), &Term::Var(param2.clone()))?;
+            let combined_subst = param_subst + body_subst;
+            Ok(combined_subst)
+        }
+
+        // Γ ⊢ (σ1 σ2) ≡ (τ1 τ2) => Γ ⊢ σ1 ≡ τ1 ∧ σ2 ≡ τ2
+        (Term::App(f1, arg1), Term::App(f2, arg2)) => {
+            let func_subst = unify(&**f1, &**f2)?;
+            let applied_arg1 = func_subst.apply(TermOrContext::Term(Box::new(**arg1)));
+            let applied_arg2 = func_subst.apply(TermOrContext::Term(Box::new(**arg2)));
+
+            let arg_subst = match applied_arg1 {
+                TermOrContext::Term(app_t_1) => {
+                    match applied_arg2 {
+                        TermOrContext::Term(app_t_2) => unify(&app_t_1, &app_t_2)?,
+                        _ => Substitution::default(), /*??*/
+                    }
+                }
+                _ => Substitution::default(), /*??*/
+            };
+            Ok(func_subst + arg_subst)
+        }
+
+        // Γ ⊢ σ ≡ τ for MonoTypes
+        (Term::MonoType(inner1), Term::MonoType(inner2)) => unify(&**inner1, &**inner2),
+
+        _ => Err("Cannot unify different types".into()),
+    }
+}
